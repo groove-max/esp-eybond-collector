@@ -1,0 +1,54 @@
+# NOTE: the inverter PROTOCOL (PI30 / SMG-Modbus / Voltronic / ...) is chosen by the Home
+# Assistant integration at RUNTIME — it is NOT configured here. This file only sets the
+# platform and the physical serial LINK (pins, transceiver, baud). The SAME firmware/config
+# works for every protocol; for a different inverter you change wiring/baud, not a 'protocol'.
+
+# BK72xx (Beken, e.g. BK7231N) board via ESPHome LibreTiny — virtual eybond
+# collector bridge for a PI30/Voltronic inverter. Same component as the ESP8266/
+# ESP32 builds; only the platform block differs.
+#
+# Pins: BK72xx software serial is chip-dependent in LibreTiny, so put the inverter
+# UART on a HARDWARE UART. Adjust tx_pin/rx_pin to your board's free hardware UART
+# (the logger/flash UART must stay separate). See LibreTiny's board pinout.
+
+esphome:
+  name: eybond-bk72xx
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya  # set to your actual LibreTiny board
+
+logger:  # uses the default debug UART; keep it off the inverter UART pins
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Eybond-BK Setup"
+
+captive_portal:
+
+api:
+
+ota:
+  - platform: esphome
+
+external_components:
+  - source: github://groove-max/esp-eybond-collector
+    components: [eybond_collector]
+
+uart:
+  id: inverter_uart
+  tx_pin: GPIO11   # hardware UART TX (adjust to your board)
+  rx_pin: GPIO10   # hardware UART RX (adjust to your board)
+  baud_rate: 2400  # PI30/Voltronic; set 9600 here for SMG/Modbus
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+eybond_collector:
+  id: bridge
+  uart_id: inverter_uart
+  # flow_control_pin: GPIO12   # MAX485 DE/RE for RS485 inverters
+
+# Runtime UART reconfiguration is not supported on LibreTiny/BK72xx.
+# Change baud_rate above and reflash when switching inverter families.

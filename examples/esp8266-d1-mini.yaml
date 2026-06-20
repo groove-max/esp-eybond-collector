@@ -1,0 +1,59 @@
+# ESP8266 / Wemos D1 mini compatible release preset.
+#
+# One firmware image covers TTL, RS232 and RS485 wiring:
+# - TTL / RS232: use TX/RX/GND only; leave GPIO14 unconnected.
+# - RS485: use the same TX/RX plus GPIO14 for DE/RE direction control.
+#
+# The inverter protocol is selected by EyeBond Local at runtime. This YAML only
+# fixes the board, pins and physical serial link.
+
+esphome:
+  name: eybond-bridge
+
+esp8266:
+  board: d1_mini
+
+logger:
+  baud_rate: 0  # free GPIO2 for the built-in LED; logs are still available over API
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Eybond-Bridge Setup"
+
+captive_portal:
+
+ota:
+  - platform: esphome
+
+external_components:
+  - source: github://groove-max/esp-eybond-collector
+    components: [eybond_collector]
+
+uart:
+  id: inverter_uart
+  tx_pin: GPIO13  # D7 -> inverter RX / RS485 DI / MAX3232 input
+  rx_pin: GPIO12  # D6 <- inverter TX / RS485 RO / MAX3232 output
+  baud_rate: 2400 # PI30/Voltronic default; switch to 9600 for SMG/Modbus
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+eybond_collector:
+  id: bridge
+  uart_id: inverter_uart
+  flow_control_pin: GPIO14  # D5 -> RS485 DE+RE; leave unconnected for TTL/RS232
+  status_led_pin:
+    number: GPIO2           # D4 / built-in LED on Wemos D1 mini
+    inverted: true
+  # pn: V00000200000000001  # optional synthetic PN; default is derived from MAC
+  # server_host: 192.0.2.10 # optional static HA address; discovery is the default
+
+select:
+  - platform: eybond_collector
+    eybond_collector_id: bridge
+    name: "Inverter UART baud rate"
+    restore_value: true
+
+api:

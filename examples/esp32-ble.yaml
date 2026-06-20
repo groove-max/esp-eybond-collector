@@ -1,0 +1,58 @@
+# Advanced ESP32 BLE provisioning profile.
+#
+# This is YAML-only for the first release, not a web-installer binary. BLE +
+# Wi-Fi can exceed small default app partitions, especially when api: and
+# captive_portal: are also enabled. Use an ESP32 board with enough flash and
+# adjust the partition/profile if needed.
+
+esphome:
+  name: eybond-bridge-ble
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+  level: INFO
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Eybond-Bridge Setup"
+
+captive_portal:
+
+ota:
+  - platform: esphome
+
+external_components:
+  - source: github://groove-max/esp-eybond-collector
+    components: [eybond_collector]
+
+esp32_ble_server:
+
+uart:
+  id: inverter_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 2400
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+eybond_collector:
+  id: bridge
+  uart_id: inverter_uart
+  flow_control_pin: GPIO4  # RS485 DE+RE; leave unconnected for TTL/RS232
+  status_led_pin: GPIO2    # built-in LED on many ESP-WROOM-32 DevKit boards; do not add external pulls
+  ble_provisioning: true
+
+select:
+  - platform: eybond_collector
+    eybond_collector_id: bridge
+    name: "Inverter UART baud rate"
+    restore_value: true
+
+api:

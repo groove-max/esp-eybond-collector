@@ -1,0 +1,6 @@
+.venv/
+host_tests/build/
+examples/.esphome/
+examples/secrets.yaml
+__pycache__/
+.local/

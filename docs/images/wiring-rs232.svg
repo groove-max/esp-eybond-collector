@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="380" viewBox="0 0 820 380" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/>
+    </marker>
+  </defs>
+  <rect width="820" height="380" fill="#ffffff"/>
+  <text x="410.0" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1d2b36">Wiring — RS232 (MAX3232)</text>
+<rect x="330" y="60" width="150" height="230" rx="10" fill="#f4f6f8" stroke="#5b6b7b" stroke-width="2"/>
+<text x="405.0" y="82" text-anchor="middle" font-weight="700" font-size="14" fill="#1d2b36">MAX3232 (RS232)</text>
+<text x="405.0" y="99" text-anchor="middle" font-size="10" fill="#6a7682">TTL  ↔  line levels</text>
+<circle cx="330" cy="120" r="4" fill="#1d2b36"/>
+<text x="342" y="124" font-size="12" fill="#1d2b36" font-family="monospace">DI/TXD</text>
+<circle cx="330" cy="150" r="4" fill="#1d2b36"/>
+<text x="342" y="154" font-size="12" fill="#1d2b36" font-family="monospace">RO/RXD</text>
+<circle cx="330" cy="180" r="4" fill="#1d2b36"/>
+<text x="342" y="184" font-size="12" fill="#1d2b36" font-family="monospace">GND</text>
+<circle cx="480" cy="120" r="4" fill="#1d2b36"/>
+<text x="468" y="124" text-anchor="end" font-size="12" fill="#1d2b36" font-family="monospace">TX</text>
+<circle cx="480" cy="150" r="4" fill="#1d2b36"/>
+<text x="468" y="154" text-anchor="end" font-size="12" fill="#1d2b36" font-family="monospace">RX</text>
+<circle cx="480" cy="180" r="4" fill="#1d2b36"/>
+<text x="468" y="184" text-anchor="end" font-size="12" fill="#1d2b36" font-family="monospace">GND</text>
+<rect x="40" y="60" width="160" height="230" rx="10" fill="#f4f6f8" stroke="#5b6b7b" stroke-width="2"/>
+<text x="120.0" y="82" text-anchor="middle" font-weight="700" font-size="15" fill="#1d2b36">ESP (3.3 V)</text>
+<text x="120.0" y="99" text-anchor="middle" font-size="11" fill="#6a7682">ESP8266 / ESP32 / BK72xx</text>
+<circle cx="200" cy="118" r="4" fill="#1d2b36"/>
+<text x="188" y="122" text-anchor="end" font-size="13" fill="#1d2b36" font-family="monospace">TX</text>
+<circle cx="200" cy="148" r="4" fill="#1d2b36"/>
+<text x="188" y="152" text-anchor="end" font-size="13" fill="#1d2b36" font-family="monospace">RX</text>
+<circle cx="200" cy="178" r="4" fill="#1d2b36"/>
+<text x="188" y="182" text-anchor="end" font-size="13" fill="#1d2b36" font-family="monospace">GND</text>
+<rect x="620" y="60" width="160" height="230" rx="10" fill="#f4f6f8" stroke="#5b6b7b" stroke-width="2"/>
+<text x="700.0" y="82" text-anchor="middle" font-weight="700" font-size="15" fill="#1d2b36">Inverter</text>
+<text x="700.0" y="99" text-anchor="middle" font-size="11" fill="#6a7682">RS232 port (DB9 / RJ45)</text>
+<circle cx="620" cy="118" r="4" fill="#1d2b36"/>
+<text x="632" y="122" text-anchor="start" font-size="13" fill="#1d2b36" font-family="monospace">RX</text>
+<circle cx="620" cy="148" r="4" fill="#1d2b36"/>
+<text x="632" y="152" text-anchor="start" font-size="13" fill="#1d2b36" font-family="monospace">TX</text>
+<circle cx="620" cy="178" r="4" fill="#1d2b36"/>
+<text x="632" y="182" text-anchor="start" font-size="13" fill="#1d2b36" font-family="monospace">GND</text>
+<path d="M 200 118 H 265.0 V 120 H 330" fill="none" stroke="#1f6feb" stroke-width="2.5"/><text x="265.0" y="111" text-anchor="middle" font-size="11" fill="#1f6feb">TX</text>
+<path d="M 200 148 H 265.0 V 150 H 330" fill="none" stroke="#1f6feb" stroke-width="2.5"/><text x="265.0" y="141" text-anchor="middle" font-size="11" fill="#1f6feb">RX</text>
+<path d="M 200 178 H 265.0 V 180 H 330" fill="none" stroke="#3a3a3a" stroke-width="2.5"/>
+<path d="M 480 120 H 550.0 V 118 H 620" fill="none" stroke="#1f6feb" stroke-width="2.5"/><text x="550.0" y="111" text-anchor="middle" font-size="11" fill="#1f6feb">TX→RX</text>
+<path d="M 480 150 H 550.0 V 148 H 620" fill="none" stroke="#1f6feb" stroke-width="2.5"/><text x="550.0" y="141" text-anchor="middle" font-size="11" fill="#1f6feb">RX←TX</text>
+<path d="M 480 180 H 550.0 V 178 H 620" fill="none" stroke="#3a3a3a" stroke-width="2.5"/>
+<line x1="40" y1="312" x2="66" y2="312" stroke="#1f6feb" stroke-width="3"/>
+<text x="74" y="316" font-size="12" fill="#6a7682">data (TX/RX)</text>
+<line x1="40" y1="332" x2="66" y2="332" stroke="#3a3a3a" stroke-width="3"/>
+<text x="74" y="336" font-size="12" fill="#6a7682">ground (common)</text>
+  <text x="410.0" y="362" text-anchor="middle" font-size="12" fill="#6a7682">RS232 is ±12 V — never wire ESP TTL pins straight to it. Full-duplex: no DE/RE. Cross TX/RX, common ground.</text>
+</svg>

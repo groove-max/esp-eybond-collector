@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="380" viewBox="0 0 820 380" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/>
+    </marker>
+  </defs>
+  <rect width="820" height="380" fill="#ffffff"/>
+  <text x="410.0" y="34" text-anchor="middle" font-size="19" font-weight="700" fill="#1d2b36">Wiring — direct TTL UART</text>
+<rect x="40" y="70" width="160" height="200" rx="10" fill="#f4f6f8" stroke="#5b6b7b" stroke-width="2"/>
+<text x="120.0" y="92" text-anchor="middle" font-weight="700" font-size="15" fill="#1d2b36">ESP (3.3 V)</text>
+<text x="120.0" y="109" text-anchor="middle" font-size="11" fill="#6a7682">ESP8266 / ESP32 / BK72xx</text>
+<circle cx="200" cy="128" r="4" fill="#1d2b36"/>
+<text x="188" y="132" text-anchor="end" font-size="13" fill="#1d2b36" font-family="monospace">TX</text>
+<circle cx="200" cy="158" r="4" fill="#1d2b36"/>
+<text x="188" y="162" text-anchor="end" font-size="13" fill="#1d2b36" font-family="monospace">RX</text>
+<circle cx="200" cy="188" r="4" fill="#1d2b36"/>
+<text x="188" y="192" text-anchor="end" font-size="13" fill="#1d2b36" font-family="monospace">GND</text>
+<rect x="620" y="70" width="160" height="200" rx="10" fill="#f4f6f8" stroke="#5b6b7b" stroke-width="2"/>
+<text x="700.0" y="92" text-anchor="middle" font-weight="700" font-size="15" fill="#1d2b36">Inverter</text>
+<text x="700.0" y="109" text-anchor="middle" font-size="11" fill="#6a7682">TTL UART port</text>
+<circle cx="620" cy="128" r="4" fill="#1d2b36"/>
+<text x="632" y="132" text-anchor="start" font-size="13" fill="#1d2b36" font-family="monospace">RX</text>
+<circle cx="620" cy="158" r="4" fill="#1d2b36"/>
+<text x="632" y="162" text-anchor="start" font-size="13" fill="#1d2b36" font-family="monospace">TX</text>
+<circle cx="620" cy="188" r="4" fill="#1d2b36"/>
+<text x="632" y="192" text-anchor="start" font-size="13" fill="#1d2b36" font-family="monospace">GND</text>
+<path d="M 200 128 H 410.0 V 128 H 620" fill="none" stroke="#1f6feb" stroke-width="2.5"/><text x="410.0" y="121" text-anchor="middle" font-size="11" fill="#1f6feb">ESP TX → INV RX</text>
+<path d="M 620 158 H 410.0 V 158 H 200" fill="none" stroke="#1f6feb" stroke-width="2.5"/><text x="410.0" y="151" text-anchor="middle" font-size="11" fill="#1f6feb">INV TX → ESP RX</text>
+<path d="M 200 188 H 410.0 V 188 H 620" fill="none" stroke="#3a3a3a" stroke-width="2.5"/><text x="410.0" y="181" text-anchor="middle" font-size="11" fill="#3a3a3a">common ground</text>
+<line x1="40" y1="312" x2="66" y2="312" stroke="#1f6feb" stroke-width="3"/>
+<text x="74" y="316" font-size="12" fill="#6a7682">data (TX/RX)</text>
+<line x1="40" y1="332" x2="66" y2="332" stroke="#3a3a3a" stroke-width="3"/>
+<text x="74" y="336" font-size="12" fill="#6a7682">ground (common)</text>
+<text x="410.0" y="244" text-anchor="middle" font-size="12" fill="#c9302c">⚠ 5 V TTL inverter: add a level shifter / divider</text><text x="410.0" y="261" text-anchor="middle" font-size="12" fill="#c9302c">on the ESP RX (3.3 V) line</text>
+  <text x="410.0" y="362" text-anchor="middle" font-size="12" fill="#6a7682">Cross over TX/RX. Share a common ground. PI30/Voltronic TTL is usually 2400 8N1.</text>
+</svg>
