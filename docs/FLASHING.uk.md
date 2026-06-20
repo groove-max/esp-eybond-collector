@@ -2,6 +2,8 @@
 
 English: [Flashing & First Setup](FLASHING.md).
 
+[![Прошити з браузера](https://img.shields.io/badge/%D0%9F%D1%80%D0%BE%D1%88%D0%B8%D1%82%D0%B8%20%D0%B7%20%D0%B1%D1%80%D0%B0%D1%83%D0%B7%D0%B5%D1%80%D0%B0-ESP%20Web%20Tools-03a9f4)](https://groove-max.github.io/esp-eybond-collector/)
+
 Цей посібник допоможе пройти шлях від порожньої ESP-плати до робочого ESP EyeBond Collector у Home Assistant.
 
 Заводський SmartESS / EyeBond-колектор не потрібен.
@@ -27,10 +29,12 @@ English: [Flashing & First Setup](FLASHING.md).
 
 ## Варіант A — прошивка з браузера
 
+[Відкрити сторінку прошивки](https://groove-max.github.io/esp-eybond-collector/)
+
 Використовуйте цей варіант, якщо ваша плата і підключення відповідають одному з готових варіантів прошивки.
 Для нього не потрібно встановлювати ESPHome або створювати `examples/secrets.yaml`.
 
-Відкрийте сторінку прошивки за адресою `https://groove-max.github.io/esp-eybond-collector/`, підключіть ESP-плату через USB і оберіть потрібний варіант.
+Відкрийте сторінку прошивки, підключіть ESP-плату через USB і оберіть потрібний варіант.
 
 | Варіант | Плата | TX | RX | RS485 DE/RE |
 |---|---|---|---|---|

@@ -2,6 +2,8 @@
 
 Українською: [Прошивка та перше налаштування](FLASHING.uk.md).
 
+[![Flash from browser](https://img.shields.io/badge/Flash%20from%20browser-ESP%20Web%20Tools-03a9f4)](https://groove-max.github.io/esp-eybond-collector/)
+
 This guide takes you from an empty ESP board to a working ESP EyeBond Collector bridge in Home Assistant.
 
 You do not need a factory SmartESS / EyeBond collector.
@@ -27,10 +29,12 @@ If your inverter already worked with another ESP firmware or cable, use the same
 
 ## Option A — Flash from the browser
 
+[Open the web installer](https://groove-max.github.io/esp-eybond-collector/)
+
 Use this option when your board and wiring match one of the release presets.
 It does not require installing ESPHome or creating `examples/secrets.yaml`.
 
-Open the project web installer at `https://groove-max.github.io/esp-eybond-collector/`, plug the ESP board into USB, and select the matching preset.
+Open the project web installer, plug the ESP board into USB, and select the matching preset.
 
 | Preset | Board | TX | RX | RS485 DE/RE |
 |---|---|---|---|---|
