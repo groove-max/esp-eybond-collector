@@ -14,8 +14,15 @@
 #include "core.h"
 #include "ble_provisioning.h"
 
+#if defined(USE_ESP8266)
+#include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
+#elif defined(USE_ESP32)
+#include <WiFi.h>
+#else
 #include <WiFiClient.h>
 #include <WiFiUdp.h>
+#endif
 
 #ifdef USE_EYBOND_BLE
 #include "esphome/components/esp32_ble_server/ble_characteristic.h"
