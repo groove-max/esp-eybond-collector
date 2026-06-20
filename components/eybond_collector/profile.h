@@ -8,7 +8,7 @@
 namespace eybond {
 
 // Bridge firmware version, advertised via AT+VDTU (virtual-DTU capability probe).
-constexpr const char *BRIDGE_VERSION = "0.1.1";
+constexpr const char *BRIDGE_VERSION = "0.1.2";
 
 struct CollectorProfile {
   std::string pn;  // set at startup (config override or synthesized from MAC)

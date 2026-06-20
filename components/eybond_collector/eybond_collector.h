@@ -52,7 +52,9 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  // Run just before Wi-Fi so the component can derive the virtual collector PN
+  // and replace the default fallback AP SSID before ESPHome starts SoftAP.
+  float get_setup_priority() const override { return setup_priority::WIFI + 0.5f; }
 
   void set_pn(const std::string &pn) { pn_override_ = pn; }
   void set_udp_port(uint16_t port) { udp_port_ = port; }
