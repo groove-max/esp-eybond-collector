@@ -44,11 +44,11 @@ void EybondCollector::setup() {
   }
 
   eybond::CollectorProfile profile;
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
   if (!pn_override_.empty()) {
     profile.pn = pn_override_;
   } else {
-    uint8_t mac[6];
-    get_mac_address_raw(mac);
     profile.pn = eybond::synthesize_pn(mac);
   }
   profile.uart = this->uart_settings_string_();
@@ -64,6 +64,8 @@ void EybondCollector::setup() {
   ble_fw_version_ = profile.firmware_version;
   ble_at_version_ = profile.at_version;
 #endif
+
+  this->configure_fallback_ap_(profile.pn);
 
   // A runtime-written server endpoint (HA "HA only" bind / move to another HA)
   // is persisted in NVS and takes priority over the YAML static_server option,
@@ -675,6 +677,28 @@ std::string EybondCollector::wifi_rssi() {
   }
 #endif
   return "-50";
+}
+
+void EybondCollector::configure_fallback_ap_(const std::string &pn) {
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component == nullptr) {
+    return;
+  }
+
+  auto ap = wifi::global_wifi_component->get_ap();
+  const std::string current = ap.get_ssid();
+  if (!current.empty() && current != "Eybond-Bridge Setup") {
+    return;  // Respect a user-provided fallback AP name.
+  }
+
+  std::string ssid = pn;
+
+  ap.set_ssid(ssid);
+  wifi::global_wifi_component->set_ap(ap);
+  ESP_LOGI(TAG, "Fallback setup AP SSID: %s", ssid.c_str());
+#else
+  (void) pn;
+#endif
 }
 
 void EybondCollector::log(const char *message) { ESP_LOGD(TAG, "%s", message); }

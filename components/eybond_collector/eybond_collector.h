@@ -97,6 +97,7 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   void process_pending_connect_();
   void process_wifi_apply_(uint32_t now);
   void poll_wifi_scan_(uint32_t now);
+  void configure_fallback_ap_(const std::string &pn);
   void note_activity_(uint32_t now);
   void update_status_led_(uint32_t now);
   void write_status_led_(bool on);

@@ -172,7 +172,7 @@ After setup, Home Assistant may show two relevant devices:
 
 ## Wi-Fi changes
 
-The bridge can use normal ESPHome Wi-Fi setup and captive portal behavior.
+The bridge can use normal ESPHome Wi-Fi setup and captive portal behavior. When it opens the setup portal, its temporary Wi-Fi network is named like its virtual collector PN, for example `V00000...`.
 
 EyeBond Local can also change collector Wi-Fi settings for the bridge. If the new credentials are wrong, the bridge should fall back to its setup portal instead of becoming permanently unreachable.
 
@@ -200,7 +200,7 @@ The nearby-network list can show only the current network on the first read. Ref
 | Random or unreadable serial data | Usually wrong baud rate or wrong voltage/level conversion. |
 | Sensors disappear later | Check inverter power, serial cable, ESP Wi-Fi, and whether the bridge fell back to the setup portal after a Wi-Fi change. |
 | The baud-rate select is missing | Add the ESP board to Home Assistant through the ESPHome integration. The select belongs to the ESPHome device. |
-| Wi-Fi change failed | Connect to the bridge setup portal and enter correct Wi-Fi credentials again. |
+| Wi-Fi change failed | Connect to the bridge setup Wi-Fi network named like `V00000...` and enter correct Wi-Fi credentials again. |
 
 If EyeBond Local detects the bridge but the inverter still does not work, create a Support Archive from EyeBond Local and attach it to an issue.
 
