@@ -200,7 +200,7 @@ The ESPHome integration can also add the ESP board as a separate device. This gi
 
 The ESPHome baud-rate select belongs to the ESPHome device. For normal use, prefer the EyeBond Local **Change inverter UART speed** action on the collector.
 
-On BK72xx / LibreTiny, runtime baud-rate switching is not available. Change `baud_rate:` in YAML and reflash.
+On BK72xx / LibreTiny, runtime baud-rate switching is not available. Change `baud_rate:` in YAML and reflash. A reboot alone is not enough because the board initializes UART from the compiled YAML value.
 
 The ESP32 BLE profile is YAML-only in the first release. Use it only on boards with enough flash/app partition space, and adjust the profile if BLE + `api:` + `captive_portal:` does not fit.
 
@@ -234,6 +234,6 @@ If your board uses another LED pin or inverted logic, adjust `status_led_pin` in
 | Data looks like garbage | Usually wrong baud rate or wrong voltage levels. |
 | Board does not join Wi-Fi after flash | Power-cycle it and check Wi-Fi credentials. |
 | Captive portal appears after Wi-Fi change | The new Wi-Fi credentials did not work. Connect to the portal and enter them again. |
-| Need another UART speed | In EyeBond Local, open the ESP bridge collector **Configure** menu and use **Change inverter UART speed**. |
+| Need another UART speed | On ESP8266/ESP32, open the ESP bridge collector **Configure** menu in EyeBond Local and use **Change inverter UART speed**. On BK72xx, change `baud_rate:` in YAML and reflash. |
 
 If the bridge is online but EyeBond Local still cannot detect the inverter, create a Support Archive from EyeBond Local and attach it to an issue.

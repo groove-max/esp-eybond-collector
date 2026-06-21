@@ -141,7 +141,7 @@ The normal way to change speed is in EyeBond Local: open the ESP bridge collecto
 
 This ESPHome select appears under the ESPHome device in Home Assistant. It is useful for diagnostics, but normal users should prefer the EyeBond Local action.
 
-On BK72xx / LibreTiny, change `baud_rate:` in YAML and reflash instead.
+On BK72xx / LibreTiny, change `baud_rate:` in YAML and reflash instead. A reboot alone is not enough because LibreTiny initializes UART from the compiled YAML value.
 
 Release presets use one pinout for all physical links:
 
