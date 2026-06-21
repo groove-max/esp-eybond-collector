@@ -82,15 +82,18 @@ TEST(at_lower_case_normalized) {
 }
 
 TEST(at_vdtu_capability_probe) {
-  // Default profile: no capability string -> byte-identical to the factory
-  // reference reply for an unknown command.
-  CHECK_STR(reply_for("AT+VDTU?\r\n"), "AT+VDTU:\r\n");
+  // Default profile still advertises the ESP bridge identity. The firmware must
+  // not fall back to a factory-like empty VDTU reply because HA uses this probe
+  // to hide cloud-only controls for virtual collectors.
+  CHECK_STR(reply_for("AT+VDTU?\r\n"),
+            "AT+VDTU:esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write;"
+            "uart=2400,8,1,NONE\r\n");
 
   CollectorProfile profile = test_profile();
-  profile.vdtu = "esp-collector,0.1.3;features=local_only,no_cloud,wifi_params,endpoint_write;uart=2400,8,1,NONE;spacing_ms=850;queue=4";
+  profile.vdtu = "esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write;uart=2400,8,1,NONE;spacing_ms=850;queue=4";
   AtCommand command;
   CHECK(parse_at_line("AT+VDTU?\r\n", &command));
   CHECK_STR(build_at_reply(command, profile, test_runtime()),
-            "AT+VDTU:esp-collector,0.1.3;features=local_only,no_cloud,wifi_params,endpoint_write;uart=2400,8,1,NONE;"
+            "AT+VDTU:esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write;uart=2400,8,1,NONE;"
             "spacing_ms=850;queue=4\r\n");
 }

@@ -46,6 +46,15 @@ bool normalize_command(const std::string &raw, std::string *out) {
   return true;
 }
 
+std::string vdtu_value(const CollectorProfile &profile) {
+  if (!profile.vdtu.empty()) {
+    return profile.vdtu;
+  }
+  return std::string("esp-collector,") + BRIDGE_VERSION +
+         ";features=local_only,no_cloud,wifi_params,endpoint_write" +
+         ";uart=" + profile.uart;
+}
+
 }  // namespace
 
 bool parse_at_line(const std::string &line, AtCommand *out) {
@@ -128,10 +137,10 @@ std::string build_at_reply(const AtCommand &command, const CollectorProfile &pro
     return build_at_response(name, profile.wifi_scan_list);
   }
   if (name == "VDTU") {
-    // Virtual-DTU capability probe: lets a future integration version detect
-    // the bridge. With an empty profile.vdtu this is byte-identical to the
-    // factory reference reply for unknown commands.
-    return build_at_response(name, profile.vdtu);
+    // Virtual-DTU capability probe. The public ESP bridge must fail closed to
+    // "local bridge" identity; an empty/factory-like reply makes HA expose
+    // cloud-only controls for a virtual collector.
+    return build_at_response(name, vdtu_value(profile));
   }
   return build_at_response(name, "");
 }

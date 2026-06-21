@@ -8,7 +8,7 @@
 namespace eybond {
 
 // Bridge firmware version, advertised via AT+VDTU (virtual-DTU capability probe).
-constexpr const char *BRIDGE_VERSION = "0.1.3";
+constexpr const char *BRIDGE_VERSION = "0.1.4";
 
 struct CollectorProfile {
   std::string pn;  // set at startup (config override or synthesized from MAC)
@@ -20,8 +20,9 @@ struct CollectorProfile {
   std::string link_status = "connected";
   std::string wifi_scan_list;  // AT+INTPARA49
   // AT+VDTU capability string ("esp-collector,<ver>;features=...;uart=...").
-  // Empty -> reply carries an empty value, byte-identical to the factory
-  // reference behavior for unknown commands; the platform glue opts in.
+  // The firmware must always identify itself as an ESP bridge. If this field is
+  // empty, the AT handler emits a minimal fallback identity instead of a
+  // factory-like empty reply.
   std::string vdtu;
 };
 

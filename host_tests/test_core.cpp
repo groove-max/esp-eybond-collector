@@ -354,14 +354,14 @@ TEST(core_vdtu_capabilities_string) {
   CollectorProfile profile = Fixture::make_profile();
   CoreConfig config;
   CHECK_STR(build_vdtu_capabilities(profile, config),
-            "esp-collector,0.1.3;features=local_only,no_cloud,wifi_params,endpoint_write;uart=2400,8,1,NONE;"
+            "esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write;uart=2400,8,1,NONE;"
             "spacing_ms=850;queue=4");
 
   config.command_spacing_ms = 100;
   config.forward_queue_limit = 8;
   profile.uart = "9600,8,1,NONE";
   CHECK_STR(build_vdtu_capabilities(profile, config),
-            "esp-collector,0.1.3;features=local_only,no_cloud,wifi_params,endpoint_write;uart=9600,8,1,NONE;"
+            "esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write;uart=9600,8,1,NONE;"
             "spacing_ms=100;queue=8");
 }
 
@@ -383,7 +383,7 @@ TEST(core_vdtu_served_over_tcp) {
   const auto calls = actions.take();
   CHECK(calls.size() == 1);
   CHECK_STR(std::string(calls[0].data.begin(), calls[0].data.end()),
-            "AT+VDTU:esp-collector,0.1.3;features=local_only,no_cloud,wifi_params,endpoint_write;uart=2400,8,1,NONE;"
+            "AT+VDTU:esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write;uart=2400,8,1,NONE;"
             "spacing_ms=850;queue=4\r\n");
 }
 
