@@ -40,7 +40,7 @@ uart:
   id: inverter_uart
   tx_pin: GPIO11   # hardware UART TX (adjust to your board)
   rx_pin: GPIO10   # hardware UART RX (adjust to your board)
-  baud_rate: 2400  # PI30/Voltronic; set 9600 here for SMG/Modbus
+  baud_rate: 9600  # SMG/Modbus; set 2400 here for PI30/Voltronic
   data_bits: 8
   parity: NONE
   stop_bits: 1

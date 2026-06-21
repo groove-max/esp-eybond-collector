@@ -86,7 +86,7 @@ General rules:
 - Cross TX/RX for TTL and RS232.
 - Share ground where required by your transceiver.
 - For RS485, connect A to A and B to B. If it does not work, try swapping A/B; some hardware labels are reversed.
-- Match the baud rate to the inverter family: PI30 is commonly `2400`, SMG / Modbus is commonly `9600`.
+- Ready-made browser firmware starts at `9600`. PI30 / Voltronic-style inverters commonly use `2400`; SMG / Modbus inverters commonly use `9600`.
 
 ---
 
@@ -119,7 +119,7 @@ uart:
   id: inverter_uart
   tx_pin: GPIO13
   rx_pin: GPIO12
-  baud_rate: 2400
+  baud_rate: 9600
 
 eybond_collector:
   id: bridge
@@ -137,16 +137,18 @@ select:
     restore_value: true
 ```
 
-This select appears under the ESPHome device in Home Assistant, not under the EyeBond Local collector device.
+The normal way to change speed is in EyeBond Local: open the ESP bridge collector **Configure** menu, choose **Change inverter UART speed**, select the speed, and confirm. The inverter connection may drop briefly while the speed changes.
+
+This ESPHome select appears under the ESPHome device in Home Assistant. It is useful for diagnostics, but normal users should prefer the EyeBond Local action.
 
 On BK72xx / LibreTiny, change `baud_rate:` in YAML and reflash instead.
 
 Release presets use one pinout for all physical links:
 
-| Preset | TX | RX | DE/RE for RS485 | Status LED |
-|---|---|---|---|---|
-| ESP8266 D1 mini | GPIO13 / D7 | GPIO12 / D6 | GPIO14 / D5 | GPIO2 / D4, inverted |
-| ESP32 DevKit | GPIO17 | GPIO16 | GPIO4 | GPIO2 |
+| Preset | TX | RX | DE/RE for RS485 | Status LED | Default UART speed |
+|---|---|---|---|---|---|
+| ESP8266 D1 mini | GPIO13 / D7 | GPIO12 / D6 | GPIO14 / D5 | GPIO2 / D4, inverted | `9600` |
+| ESP32 DevKit | GPIO17 | GPIO16 | GPIO4 | GPIO2 | `9600` |
 
 For TTL and RS232, use TX/RX/GND and leave the DE/RE pin unconnected. For RS485, connect DE and RE together to the listed DE/RE pin.
 
@@ -167,6 +169,8 @@ After setup, Home Assistant may show two relevant devices:
 
 - the EyeBond Local collector/inverter devices;
 - the ESPHome device for firmware-level features such as logs, OTA, and optional baud-rate select.
+
+For the custom ESP bridge, EyeBond Local also exposes **Change inverter UART speed** in the collector **Configure** menu. Use it when the bridge is found but the inverter needs another serial speed.
 
 ---
 
@@ -199,7 +203,7 @@ The nearby-network list can show only the current network on the first read. Ref
 | ESPHome logs show transmit but no receive | The inverter reply path is wrong: RX pin, wiring, level converter, RS485 A/B, or baud rate. |
 | Random or unreadable serial data | Usually wrong baud rate or wrong voltage/level conversion. |
 | Sensors disappear later | Check inverter power, serial cable, ESP Wi-Fi, and whether the bridge fell back to the setup portal after a Wi-Fi change. |
-| The baud-rate select is missing | Add the ESP board to Home Assistant through the ESPHome integration. The select belongs to the ESPHome device. |
+| Need another UART speed | In EyeBond Local, open the ESP bridge collector **Configure** menu and use **Change inverter UART speed**. |
 | Wi-Fi change failed | Connect to the bridge setup Wi-Fi network named like `V00000...` and enter correct Wi-Fi credentials again. |
 
 If EyeBond Local detects the bridge but the inverter still does not work, create a Support Archive from EyeBond Local and attach it to an issue.

@@ -43,6 +43,7 @@ class Preset:
     de: str
     led: str
     led_uk: str
+    default_baud: str
     build_name: str
 
 
@@ -58,6 +59,7 @@ PRESETS: tuple[Preset, ...] = (
         de="GPIO14 / D5",
         led="GPIO2 / D4, inverted",
         led_uk="GPIO2 / D4, інверсний режим",
+        default_baud="9600",
         build_name="eybond-esp8266",
     ),
     Preset(
@@ -71,6 +73,7 @@ PRESETS: tuple[Preset, ...] = (
         de="GPIO4",
         led="GPIO2",
         led_uk="GPIO2",
+        default_baud="9600",
         build_name="eybond-esp32",
     ),
 )
@@ -142,6 +145,7 @@ def _write_web(output: Path, version: str) -> None:
           <tr><th>RX</th><td>{preset.rx}</td></tr>
           <tr><th>RS485 DE/RE</th><td>{preset.de} (leave unconnected for TTL/RS232)</td></tr>
           <tr><th>Status LED</th><td>{preset.led}</td></tr>
+          <tr><th>Default UART speed</th><td>{preset.default_baud} baud</td></tr>
         </table>
         <esp-web-install-button manifest="manifest-{preset.slug}.json">
           <button slot="activate">Install firmware</button>
@@ -161,6 +165,7 @@ def _write_web(output: Path, version: str) -> None:
           <tr><th>RX</th><td>{preset.rx}</td></tr>
           <tr><th>RS485 DE/RE</th><td>{preset.de} (не підключайте для TTL/RS232)</td></tr>
           <tr><th>Світлодіод стану</th><td>{preset.led_uk}</td></tr>
+          <tr><th>Типова швидкість UART</th><td>{preset.default_baud} бод</td></tr>
         </table>
         <esp-web-install-button manifest="manifest-{preset.slug}.json">
           <button slot="activate">Прошити плату</button>

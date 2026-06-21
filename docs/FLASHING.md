@@ -36,10 +36,10 @@ It does not require installing ESPHome or creating `examples/secrets.yaml`.
 
 Open the project web installer, plug the ESP board into USB, and select the matching preset.
 
-| Preset | Board | TX | RX | RS485 DE/RE |
-|---|---|---|---|---|
-| `esp8266-d1-mini` | ESP8266 D1 mini compatible | GPIO13 / D7 | GPIO12 / D6 | GPIO14 / D5 |
-| `esp32-devkit` | ESP32 DevKit compatible | GPIO17 | GPIO16 | GPIO4 |
+| Preset | Board | TX | RX | RS485 DE/RE | Default UART speed |
+|---|---|---|---|---|---|
+| `esp8266-d1-mini` | ESP8266 D1 mini compatible | GPIO13 / D7 | GPIO12 / D6 | GPIO14 / D5 | `9600` |
+| `esp32-devkit` | ESP32 DevKit compatible | GPIO17 | GPIO16 | GPIO4 | `9600` |
 
 Both presets can be used for TTL, RS232, or RS485:
 
@@ -48,6 +48,8 @@ Both presets can be used for TTL, RS232, or RS485:
 - RS485: connect TX/RX to the RS485 module and connect DE+RE to the preset DE/RE pin.
 
 After flashing, the board opens a setup access point if it cannot join Wi-Fi. Connect to that access point from a phone or laptop and enter your Wi-Fi credentials.
+
+If your inverter needs another UART speed, add the bridge in EyeBond Local, open the collector **Configure** menu, choose **Change inverter UART speed**, select the speed, and confirm. The inverter connection may drop briefly while the speed changes.
 
 If your board or pins are different, use the ESPHome YAML option below.
 
@@ -104,7 +106,7 @@ Open the YAML and check:
 - `status_led_pin` matches the board's built-in LED if you want status indication;
 - `baud_rate` matches the inverter family.
 
-Typical baud rates:
+The ready-made browser firmware starts at `9600`. Typical baud rates:
 
 - PI30 / Voltronic-style ASCII: `2400`
 - SMG / Modbus-style RS485: `9600`
@@ -188,13 +190,15 @@ Keep Home Assistant and the bridge on the same network for easiest discovery.
 
 EyeBond Local creates the collector/inverter devices.
 
+EyeBond Local can change the inverter UART speed for the custom ESP bridge from the collector **Configure** menu. Use **Change inverter UART speed**, choose the speed, and confirm. The option is shown only for this ESP bridge, not for factory collectors.
+
 The ESPHome integration can also add the ESP board as a separate device. This gives you:
 
 - ESPHome logs;
 - OTA updates;
 - optional **Inverter UART baud rate** select on ESP8266/ESP32, when it is included in your YAML.
 
-The baud-rate select belongs to the ESPHome device, not to the EyeBond Local collector device.
+The ESPHome baud-rate select belongs to the ESPHome device. For normal use, prefer the EyeBond Local **Change inverter UART speed** action on the collector.
 
 On BK72xx / LibreTiny, runtime baud-rate switching is not available. Change `baud_rate:` in YAML and reflash.
 
@@ -230,6 +234,6 @@ If your board uses another LED pin or inverted logic, adjust `status_led_pin` in
 | Data looks like garbage | Usually wrong baud rate or wrong voltage levels. |
 | Board does not join Wi-Fi after flash | Power-cycle it and check Wi-Fi credentials. |
 | Captive portal appears after Wi-Fi change | The new Wi-Fi credentials did not work. Connect to the portal and enter them again. |
-| Baud-rate select is missing | Add the board through the ESPHome integration and make sure the YAML includes the `select:` block. |
+| Need another UART speed | In EyeBond Local, open the ESP bridge collector **Configure** menu and use **Change inverter UART speed**. |
 
 If the bridge is online but EyeBond Local still cannot detect the inverter, create a Support Archive from EyeBond Local and attach it to an issue.

@@ -8,7 +8,7 @@
 namespace eybond {
 
 // Bridge firmware version, advertised via AT+VDTU (virtual-DTU capability probe).
-constexpr const char *BRIDGE_VERSION = "0.1.2";
+constexpr const char *BRIDGE_VERSION = "0.1.3";
 
 struct CollectorProfile {
   std::string pn;  // set at startup (config override or synthesized from MAC)
@@ -16,7 +16,7 @@ struct CollectorProfile {
   std::string at_version = "1.11";
   std::string collector_type = "Wi-Fi.DTU";
   std::string upload_mode = "OFF";
-  std::string uart = "2400,8,1,NONE";  // reported AT+UART value; keep in sync with real UART config
+  std::string uart = "9600,8,1,NONE";  // reported AT+UART value; keep in sync with real UART config
   std::string link_status = "connected";
   std::string wifi_scan_list;  // AT+INTPARA49
   // AT+VDTU capability string ("esp-collector,<ver>;features=...;uart=...").

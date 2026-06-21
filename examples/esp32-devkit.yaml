@@ -36,7 +36,7 @@ uart:
   id: inverter_uart
   tx_pin: GPIO17  # -> inverter RX / RS485 DI / MAX3232 input
   rx_pin: GPIO16  # <- inverter TX / RS485 RO / MAX3232 output
-  baud_rate: 2400 # PI30/Voltronic default; switch to 9600 for SMG/Modbus
+  baud_rate: 9600 # SMG/Modbus default; switch to 2400 for PI30/Voltronic
   data_bits: 8
   parity: NONE
   stop_bits: 1

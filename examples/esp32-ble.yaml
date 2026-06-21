@@ -37,7 +37,7 @@ uart:
   id: inverter_uart
   tx_pin: GPIO17
   rx_pin: GPIO16
-  baud_rate: 2400
+  baud_rate: 9600
   data_bits: 8
   parity: NONE
   stop_bits: 1
