@@ -6,6 +6,8 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include <Arduino.h>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
@@ -42,6 +44,9 @@ void EybondCollector::setup() {
     status_led_pin_->setup();
     this->write_status_led_(false);
   }
+
+  baud_pref_ = global_preferences->make_preference<uint32_t>(BAUD_PREF_HASH);
+  this->restore_persisted_baud_rate_();
 
   eybond::CollectorProfile profile;
   uint8_t mac[6];
@@ -112,6 +117,7 @@ void EybondCollector::loop() {
       tcp_up_ = false;
       core_->on_tcp_closed(now);
     }
+    this->process_reboot_(now);
     this->update_status_led_(now);
     return;
   }
@@ -172,6 +178,7 @@ void EybondCollector::loop() {
   core_->loop(millis());
   this->process_pending_connect_();
   this->process_wifi_apply_(millis());
+  this->process_reboot_(millis());
   this->poll_wifi_scan_(millis());
   this->update_status_led_(millis());
 }
@@ -230,7 +237,11 @@ uint8_t EybondCollector::set_param(uint8_t parameter, const std::string &value) 
     pending_endpoint_ = value;
     return 0;
   }
-  if (parameter == 29) {  // system_operation: commit ALL staged changes
+  if (parameter == 29) {  // system_operation: commit staged changes or restart
+    bool had_staged = !pending_endpoint_.empty();
+#ifdef USE_WIFI
+    had_staged = had_staged || !pending_wifi_ssid_.empty() || !pending_wifi_password_.empty();
+#endif
     bool committed = false;
     if (!pending_endpoint_.empty()) {
       std::string host;
@@ -249,7 +260,14 @@ uint8_t EybondCollector::set_param(uint8_t parameter, const std::string &value) 
       committed = true;
     }
 #endif
-    return committed ? 0 : 1;  // refuse only when nothing was staged
+    if (committed) {
+      return 0;
+    }
+    if (had_staged) {
+      return 1;  // staged but invalid/incomplete; do not reinterpret as restart
+    }
+    this->request_reboot_(millis());
+    return 0;
   }
 #ifdef USE_WIFI
   switch (parameter) {
@@ -330,6 +348,7 @@ void EybondCollector::apply_uart(const std::string &value) {
   if (!this->reconfigure_uart_(s.baud, s.data_bits, s.stop_bits, parity)) {
     return;
   }
+  this->persist_baud_rate_(s.baud);
   if (core_ != nullptr) {
     core_->update_uart_description(this->uart_settings_string_());
   }
@@ -347,6 +366,7 @@ bool EybondCollector::apply_baud_rate(uint32_t baud) {
   if (!this->reconfigure_uart_(baud, u->get_data_bits(), u->get_stop_bits(), u->get_parity())) {
     return false;
   }
+  this->persist_baud_rate_(baud);
   if (core_ != nullptr) {
     core_->update_uart_description(this->uart_settings_string_());
   }
@@ -357,6 +377,32 @@ bool EybondCollector::apply_baud_rate(uint32_t baud) {
 }
 
 uint32_t EybondCollector::current_baud_rate() const { return this->parent_->get_baud_rate(); }
+
+void EybondCollector::restore_persisted_baud_rate_() {
+  uint32_t saved = 0;
+  if (!baud_pref_.load(&saved) || saved == 0) {
+    return;
+  }
+  if (!this->baud_supported_(saved)) {
+    ESP_LOGW(TAG, "Ignoring unsupported persisted inverter UART baud rate %u", static_cast<unsigned>(saved));
+    return;
+  }
+  auto *u = this->parent_;
+  if (!this->reconfigure_uart_(saved, u->get_data_bits(), u->get_stop_bits(), u->get_parity())) {
+    ESP_LOGW(TAG, "Persisted inverter UART baud rate %u cannot be applied on this platform",
+             static_cast<unsigned>(saved));
+    return;
+  }
+  ESP_LOGI(TAG, "Restored inverter UART baud rate %u", static_cast<unsigned>(saved));
+}
+
+void EybondCollector::persist_baud_rate_(uint32_t baud) {
+  if (!baud_pref_.save(&baud)) {
+    ESP_LOGW(TAG, "Failed to persist inverter UART baud rate %u", static_cast<unsigned>(baud));
+    return;
+  }
+  global_preferences->sync();
+}
 
 void EybondCollector::process_wifi_apply_(uint32_t now) {
 #ifdef USE_WIFI
@@ -372,6 +418,21 @@ void EybondCollector::process_wifi_apply_(uint32_t now) {
 #else
   (void) now;
 #endif
+}
+
+void EybondCollector::request_reboot_(uint32_t now) {
+  reboot_requested_ = true;
+  reboot_at_ms_ = now + 1500;
+  ESP_LOGI(TAG, "Collector restart requested; rebooting after response flush");
+}
+
+void EybondCollector::process_reboot_(uint32_t now) {
+  if (!reboot_requested_ || static_cast<int32_t>(now - reboot_at_ms_) < 0) {
+    return;
+  }
+  reboot_requested_ = false;
+  ESP_LOGI(TAG, "Restarting collector");
+  ESP.restart();
 }
 
 void EybondCollector::poll_wifi_scan_(uint32_t now) {

@@ -63,7 +63,7 @@ bool parse_uart_settings(const std::string &value, UartSettings *out) {
 
 std::string build_vdtu_capabilities(const CollectorProfile &profile, const CoreConfig &config) {
   return std::string("esp-collector,") + BRIDGE_VERSION +
-         ";features=local_only,no_cloud,wifi_params,endpoint_write" +
+         ";features=local_only,no_cloud,wifi_params,endpoint_write,reboot" +
          ";uart=" + profile.uart +
          ";spacing_ms=" + std::to_string(config.command_spacing_ms) +
          ";queue=" + std::to_string(config.forward_queue_limit);

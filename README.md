@@ -137,7 +137,7 @@ select:
     restore_value: true
 ```
 
-The normal way to change speed is in EyeBond Local: open the ESP bridge collector **Configure** menu, choose **Change inverter UART speed**, select the speed, and confirm. The inverter connection may drop briefly while the speed changes.
+The normal way to change speed is in EyeBond Local: open the ESP bridge collector **Configure** menu, choose **Change inverter UART speed**, select the speed, and confirm. On ESP8266/ESP32, the selected speed is saved and restored after reboot or power loss. The inverter connection may drop briefly while the speed changes.
 
 This ESPHome select appears under the ESPHome device in Home Assistant. It is useful for diagnostics, but normal users should prefer the EyeBond Local action.
 
@@ -170,7 +170,7 @@ After setup, Home Assistant may show two relevant devices:
 - the EyeBond Local collector/inverter devices;
 - the ESPHome device for firmware-level features such as logs, OTA, and optional baud-rate select.
 
-For the custom ESP bridge, EyeBond Local also exposes **Change inverter UART speed** in the collector **Configure** menu. Use it when the bridge is found but the inverter needs another serial speed.
+For the custom ESP bridge, EyeBond Local also exposes **Change inverter UART speed** in the collector **Configure** menu. Use it when the bridge is found but the inverter needs another serial speed. On ESP8266/ESP32, the selected speed is saved and restored after reboot or power loss.
 
 ---
 

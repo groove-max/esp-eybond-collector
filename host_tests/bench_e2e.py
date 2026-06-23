@@ -198,7 +198,7 @@ def main() -> int:
             vdtu_line = link.recv_line()
             check(
                 vdtu_line.startswith(b"AT+VDTU:esp-collector,")
-                and b";features=local_only,no_cloud,wifi_params,endpoint_write;" in vdtu_line
+                and b";features=local_only,no_cloud,wifi_params,endpoint_write,reboot;" in vdtu_line
                 and b";uart=2400,8,1,NONE;" in vdtu_line,
                 f"AT+VDTU {vdtu_line!r}",
             )
@@ -284,20 +284,15 @@ def main() -> int:
             return parse_set_collector_response(payload)
 
         def step_param_writes():
-            # Commit with nothing staged -> refused (the param-29 guard). We avoid
-            # staging Wi-Fi credentials here so the bench network is never touched.
-            response = set_param(0x0208, 29, "1")
-            check(response.status == 1 and response.parameter == 29, "FC3 apply with nothing staged refused")
-
             # Endpoint write (Item 5) is now ACCEPTED and committed. We write back
             # the bridge's CURRENT endpoint so the commit is a no-op retarget that
             # cannot break the live link; the real move-to-another-host retarget is
             # covered by the host test. Format matches the param-21 read.
-            current = query_param(0x0209, 21)
+            current = query_param(0x0208, 21)
             check(current.code == 0 and "," in current.text, f"FC2 param 21 current endpoint {current.text!r}")
-            staged = set_param(0x020A, 21, current.text)
+            staged = set_param(0x0209, 21, current.text)
             check(staged.status == 0 and staged.parameter == 21, "FC3 param 21 endpoint accepted")
-            applied = set_param(0x020B, 29, "1")
+            applied = set_param(0x020A, 29, "1")
             check(applied.status == 0 and applied.parameter == 29, "FC3 param 29 commits staged endpoint")
 
             # Link survived the (no-op) endpoint commit.
@@ -325,6 +320,14 @@ def main() -> int:
             check(header.tid == 0x0303 and parse_response(payload) == RESPONSES["QPI"],
                   "FC4 works after re-baud round trip")
         link.run_step("uart rebaud", step_rebaud)
+
+        # 10. Collector restart command. Keep it last: with no staged changes,
+        # FC=3 param 29 now means "restart collector" and the board will drop
+        # the TCP link shortly after the ACK has been sent.
+        def step_restart():
+            response = set_param(0x0401, 29, "1")
+            check(response.status == 0 and response.parameter == 29, "FC3 param 29 restarts when nothing staged")
+        link.run_step("collector restart", step_restart)
     finally:
         link.close()
         fake.stop()

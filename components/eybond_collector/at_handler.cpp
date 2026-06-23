@@ -51,7 +51,7 @@ std::string vdtu_value(const CollectorProfile &profile) {
     return profile.vdtu;
   }
   return std::string("esp-collector,") + BRIDGE_VERSION +
-         ";features=local_only,no_cloud,wifi_params,endpoint_write" +
+         ";features=local_only,no_cloud,wifi_params,endpoint_write,reboot" +
          ";uart=" + profile.uart;
 }
 

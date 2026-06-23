@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "at_handler.h"
+#include "core.h"
 #include "discovery.h"
 #include "frame.h"
 
@@ -45,8 +46,9 @@ int main() {
   fc2.insert(fc2.end(), profile.firmware_version.begin(), profile.firmware_version.end());
   dump("fc2_param5", build_frame(7, 0x0994, 0x10, FC_QUERY_COLLECTOR, fc2.data(), fc2.size()));
 
+  profile.vdtu = build_vdtu_capabilities(profile, CoreConfig{});
   const char *queries[] = {"DTUPN", "ATVER", "ENUPMODE", "SYST", "WFSS",  "UART",      "DTUTYPE",
-                           "FWVER", "CLDSRVHOST1", "HTBT", "LINK", "INTPARA49", "UNKNOWNCMD"};
+                           "FWVER", "CLDSRVHOST1", "HTBT", "LINK", "INTPARA49", "VDTU", "UNKNOWNCMD"};
   for (const char *name : queries) {
     AtCommand command;
     const std::string line = std::string("AT+") + name + "?\r\n";

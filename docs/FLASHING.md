@@ -49,7 +49,7 @@ Both presets can be used for TTL, RS232, or RS485:
 
 After flashing, the board opens a setup access point if it cannot join Wi-Fi. Connect to that access point from a phone or laptop and enter your Wi-Fi credentials.
 
-If your inverter needs another UART speed, add the bridge in EyeBond Local, open the collector **Configure** menu, choose **Change inverter UART speed**, select the speed, and confirm. The inverter connection may drop briefly while the speed changes.
+If your inverter needs another UART speed, add the bridge in EyeBond Local, open the collector **Configure** menu, choose **Change inverter UART speed**, select the speed, and confirm. On ESP8266/ESP32, the selected speed is saved and restored after reboot or power loss. The inverter connection may drop briefly while the speed changes.
 
 If your board or pins are different, use the ESPHome YAML option below.
 
@@ -190,7 +190,7 @@ Keep Home Assistant and the bridge on the same network for easiest discovery.
 
 EyeBond Local creates the collector/inverter devices.
 
-EyeBond Local can change the inverter UART speed for the custom ESP bridge from the collector **Configure** menu. Use **Change inverter UART speed**, choose the speed, and confirm. The option is shown only for this ESP bridge, not for factory collectors.
+EyeBond Local can change the inverter UART speed for the custom ESP bridge from the collector **Configure** menu. Use **Change inverter UART speed**, choose the speed, and confirm. On ESP8266/ESP32, the selected speed is saved and restored after reboot or power loss. The option is shown only for this ESP bridge, not for factory collectors.
 
 The ESPHome integration can also add the ESP board as a separate device. This gives you:
 

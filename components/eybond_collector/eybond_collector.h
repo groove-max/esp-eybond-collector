@@ -41,6 +41,7 @@ struct PersistedEndpoint {
 } PACKED;
 
 static const uint32_t ENDPOINT_PREF_HASH = 0xE7B0'DC01;
+static const uint32_t BAUD_PREF_HASH = 0xE7B0'DC02;
 
 class EybondCollector : public Component, public uart::UARTDevice, private eybond::CollectorCore::Actions
 #ifdef USE_EYBOND_BLE
@@ -98,12 +99,16 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
 
   void process_pending_connect_();
   void process_wifi_apply_(uint32_t now);
+  void request_reboot_(uint32_t now);
+  void process_reboot_(uint32_t now);
   void poll_wifi_scan_(uint32_t now);
   void configure_fallback_ap_(const std::string &pn);
   void note_activity_(uint32_t now);
   void update_status_led_(uint32_t now);
   void write_status_led_(bool on);
   std::string uart_settings_string_() const;
+  void restore_persisted_baud_rate_();
+  void persist_baud_rate_(uint32_t baud);
 
 #ifdef USE_EYBOND_BLE
   // eybond::BleProvisioning::Actions
@@ -147,12 +152,19 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
 
   // WiFi reconfiguration via the integration's collector parameter flow:
   // FC=3 writes stage ssid (41) and password (43); FC=3 param 29 ("apply")
-  // commits them. The commit is deferred to loop() so the FC=3 response
-  // reaches HA before the STA reconnects.
+  // commits them. With nothing staged, param 29 requests collector restart.
+  // Deferred operations run from loop() so the FC=3 response reaches HA before
+  // the STA reconnects or the board reboots.
   std::string pending_wifi_ssid_;
   std::string pending_wifi_password_;
   bool wifi_apply_requested_{false};
   uint32_t wifi_apply_at_ms_{0};
+
+  // FC=3 param 29 with no staged Wi-Fi/endpoint changes is a collector restart
+  // request. Reboot is delayed so the SmartESS-compatible response frame reaches
+  // HA before the TCP link drops.
+  bool reboot_requested_{false};
+  uint32_t reboot_at_ms_{0};
 
   // Wi-Fi scan cache for FC=2 param 49 ("[ssid,rssi][ssid2,rssi2]...").
   std::string wifi_scan_cache_;
@@ -160,6 +172,7 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
 
   // Notified after a successful runtime re-baud (keeps the select entity in sync).
   std::function<void(uint32_t)> baud_listener_;
+  ESPPreferenceObject baud_pref_;
 
   // Server-endpoint write (FC=3 param 21 staged, committed by param 29) and its
   // NVS persistence.

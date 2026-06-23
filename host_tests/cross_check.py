@@ -52,6 +52,11 @@ def expected_vectors() -> dict[str, bytes]:
         "FWVER", "CLDSRVHOST1", "HTBT", "LINK", "INTPARA49", "UNKNOWNCMD",
     ):
         vectors[f"at_{command}"] = build_at_reply(command, profile=PROFILE, cloud_endpoint=CLOUD_ENDPOINT)
+    vectors["at_VDTU"] = (
+        b"AT+VDTU:esp-collector,0.1.4;"
+        b"features=local_only,no_cloud,wifi_params,endpoint_write,reboot;"
+        b"uart=2400,8,1,NONE;spacing_ms=850;queue=4\r\n"
+    )
     # SYST depends on wall clock; the dump uses a fixed string, so compare statically.
     vectors["at_SYST"] = b"AT+SYST:20260613120000\r\n"
     return vectors

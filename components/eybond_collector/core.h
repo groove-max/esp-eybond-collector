@@ -10,7 +10,8 @@
 //   - on connect: unsolicited FC=1 heartbeat (payload = PN[:14] NUL-padded), then periodic
 //   - server FC=1 -> heartbeat reply with the request tid
 //   - server FC=2 param 5 -> {0x00, 0x05} + firmware version; other params -> {0x01, param}
-//   - server FC=3 -> {0x01, param} (sets are refused; the bridge has no cloud config)
+//   - server FC=3 -> platform-controlled collector params (Wi-Fi/endpoint
+//     staging, param 29 apply/reboot, UART baud) or {0x01, param} refused
 //   - server FC=4 -> payload to UART verbatim, response framed back with the same
 //     tid/devcode/devaddr; inverter silence -> NO reply (the integration relies on
 //     distinguishing timeout from data)
@@ -48,7 +49,7 @@ struct CoreConfig {
 };
 
 // Compose the AT+VDTU capability value the bridge advertises, e.g.
-// "esp-collector,0.2.0;features=local_only,no_cloud;uart=2400,8,1,NONE;spacing_ms=850;queue=4".
+// "esp-collector,0.2.0;features=local_only,no_cloud,reboot;uart=2400,8,1,NONE;spacing_ms=850;queue=4".
 // A future integration version can probe this once to detect the virtual bridge;
 // factory collectors answer the query differently (empty/garbage), so absence of
 // this exact "esp-collector," prefix means "factory".

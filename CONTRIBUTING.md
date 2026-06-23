@@ -48,7 +48,7 @@ The behavioral specification is the integration's own fake collector:
 - **Discovery**: UDP `58899`, `set>server=IP:PORT;` → reply `rsp>server=2;` + reverse TCP to Home Assistant.
 - **Heartbeat**: FC=1 on connect, then periodic (default 60 s); payload is the PN truncated to 14 bytes. A server FC=1 is answered with its own `tid`.
 - **FC=2** (query collector): the core answers parameters it knows from its own state (PN, firmware, current endpoint, baud); the glue answers the rest (hardware, IP, SSID, RSSI, Wi-Fi scan list). Unknown parameters → `01 <param>` (refused), like the factory fake.
-- **FC=3** (set collector): writes are *staged* and committed together. Param 41/43 stage the target Wi-Fi SSID/password; param 21 stages the server endpoint; param 29 (`system_operation`) **commits everything staged** — endpoint and/or Wi-Fi — and is refused only when nothing is staged. Param 34 (baud) applies immediately. Everything else is refused `01 <param>`. The committed endpoint is persisted to NVS (so the bridge reconnects to the same HA across reboots / can be moved to another HA); incoming discovery still overrides it live. `AT+CLDSRVHOST1=` applies an endpoint immediately (no staging) and retargets the link.
+- **FC=3** (set collector): writes are *staged* and committed together. Param 41/43 stage the target Wi-Fi SSID/password; param 21 stages the server endpoint; param 29 (`system_operation`) **commits everything staged** — endpoint and/or Wi-Fi. If nothing is staged, param 29 is treated as **Restart Collector** and the reboot is delayed until after the response frame is sent. Param 34 (baud) applies immediately. Everything else is refused `01 <param>`. The committed endpoint is persisted to NVS (so the bridge reconnects to the same HA across reboots / can be moved to another HA); incoming discovery still overrides it live. `AT+CLDSRVHOST1=` applies an endpoint immediately (no staging) and retargets the link.
 - **FC=4** (forward): payload → UART as-is; the inverter reply (end detected by a `response_gap` of silence) → frame with the same `tid`/`devcode`/`devaddr`. **Inverter silence → no reply at all** — the integration distinguishes a timeout from a zero-filled answer, so this is load-bearing.
 - **AT lines** (`AT+...\n`) are interleaved with binary frames on the same TCP stream; they are told apart by the 3-byte `AT+` prefix.
 - Inverter requests are serialized: one in flight, with a `command_spacing` pause (factory ~850 ms) between commands.
@@ -62,10 +62,10 @@ The PN is synthetic: `V00` + the 15-digit decimal MAC → the PN18 format `^[A-Z
 The firmware answers `AT+VDTU?` with a capability string:
 
 ```
-AT+VDTU:esp-collector,<semver>;features=local_only,no_cloud,wifi_params,endpoint_write;uart=<baud,data,stop,parity>;spacing_ms=<n>;queue=<n>
+AT+VDTU:esp-collector,<semver>;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;uart=<baud,data,stop,parity>;spacing_ms=<n>;queue=<n>
 ```
 
-EyeBond Local probes this on link-up. The `esp-collector,` prefix identifies a virtual bridge so cloud-only flows can be hidden and an honest device name/version can be shown. Factory collectors do not return the prefix. For every other command the bridge behavior remains compatible with the factory collector path. When the capability string is unset (core without glue), the reply is an empty value, like the factory reference for unknown commands.
+EyeBond Local probes this on link-up. The `esp-collector,` prefix identifies a virtual bridge so cloud-only flows can be hidden and an honest device name/version can be shown. Factory collectors do not return the prefix. Features advertise optional collector-side operations such as endpoint writes and restart. For every other command the bridge behavior remains compatible with the factory collector path.
 
 ---
 

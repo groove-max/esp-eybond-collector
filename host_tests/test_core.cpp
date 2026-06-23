@@ -354,14 +354,14 @@ TEST(core_vdtu_capabilities_string) {
   CollectorProfile profile = Fixture::make_profile();
   CoreConfig config;
   CHECK_STR(build_vdtu_capabilities(profile, config),
-            "esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write;uart=2400,8,1,NONE;"
+            "esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;uart=2400,8,1,NONE;"
             "spacing_ms=850;queue=4");
 
   config.command_spacing_ms = 100;
   config.forward_queue_limit = 8;
   profile.uart = "9600,8,1,NONE";
   CHECK_STR(build_vdtu_capabilities(profile, config),
-            "esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write;uart=9600,8,1,NONE;"
+            "esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;uart=9600,8,1,NONE;"
             "spacing_ms=100;queue=8");
 }
 
@@ -383,7 +383,7 @@ TEST(core_vdtu_served_over_tcp) {
   const auto calls = actions.take();
   CHECK(calls.size() == 1);
   CHECK_STR(std::string(calls[0].data.begin(), calls[0].data.end()),
-            "AT+VDTU:esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write;uart=2400,8,1,NONE;"
+            "AT+VDTU:esp-collector,0.1.4;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;uart=2400,8,1,NONE;"
             "spacing_ms=850;queue=4\r\n");
 }
 
@@ -495,6 +495,85 @@ TEST(core_fc3_write_via_platform_hook) {
   calls = actions.take();
   CHECK(calls.size() == 1);
   CHECK_HEX(calls[0].data, "004209940004100301" "15");
+}
+
+namespace {
+
+class RestartParamActions : public MockActions {
+ public:
+  bool reboot_scheduled = false;
+  bool endpoint_committed = false;
+  std::string pending_endpoint;
+
+  uint8_t set_param(uint8_t parameter, const std::string &value) override {
+    if (parameter == 21) {
+      pending_endpoint = value;
+      return 0;
+    }
+    if (parameter != 29) {
+      return 1;
+    }
+    if (!pending_endpoint.empty()) {
+      endpoint_committed = true;
+      pending_endpoint.clear();
+      return 0;
+    }
+    reboot_scheduled = true;
+    return 0;
+  }
+};
+
+std::vector<uint8_t> set_param_frame(uint16_t tid, uint8_t parameter, const char *value) {
+  std::vector<uint8_t> payload = {parameter};
+  while (*value != '\0') {
+    payload.push_back(static_cast<uint8_t>(*value++));
+  }
+  return build_frame(tid, 0x0994, 0x10, FC_SET_COLLECTOR, payload.data(), payload.size());
+}
+
+}  // namespace
+
+TEST(core_fc3_param29_restart_when_nothing_staged) {
+  RestartParamActions actions;
+  CollectorCore core(&actions, Fixture::make_profile(), CoreConfig{});
+  const std::string discovery = "set>server=192.0.2.10:8899;";
+  core.on_udp_datagram(reinterpret_cast<const uint8_t *>(discovery.data()), discovery.size(), 1000);
+  core.loop(1000);
+  core.on_tcp_connected(1100);
+  actions.calls.clear();
+
+  const std::vector<uint8_t> restart = set_param_frame(0x43, 29, "1");
+  core.on_tcp_data(restart.data(), restart.size(), 2000);
+
+  const auto calls = actions.take();
+  CHECK(calls.size() == 1);
+  CHECK_HEX(calls[0].data, "004309940004100300" "1d");  // status 0, param 29
+  CHECK(actions.reboot_scheduled);
+  CHECK(!actions.endpoint_committed);
+}
+
+TEST(core_fc3_param29_commits_staged_endpoint_without_restart) {
+  RestartParamActions actions;
+  CollectorCore core(&actions, Fixture::make_profile(), CoreConfig{});
+  const std::string discovery = "set>server=192.0.2.10:8899;";
+  core.on_udp_datagram(reinterpret_cast<const uint8_t *>(discovery.data()), discovery.size(), 1000);
+  core.loop(1000);
+  core.on_tcp_connected(1100);
+  actions.calls.clear();
+
+  const std::vector<uint8_t> stage = set_param_frame(0x44, 21, "192.0.2.10,8899,TCP");
+  core.on_tcp_data(stage.data(), stage.size(), 2000);
+  auto calls = actions.take();
+  CHECK(calls.size() == 1);
+  CHECK_HEX(calls[0].data, "004409940004100300" "15");  // status 0, param 21
+
+  const std::vector<uint8_t> apply = set_param_frame(0x45, 29, "1");
+  core.on_tcp_data(apply.data(), apply.size(), 2001);
+  calls = actions.take();
+  CHECK(calls.size() == 1);
+  CHECK_HEX(calls[0].data, "004509940004100300" "1d");  // status 0, param 29
+  CHECK(actions.endpoint_committed);
+  CHECK(!actions.reboot_scheduled);
 }
 
 namespace {
@@ -651,9 +730,11 @@ TEST(core_at_cldsrvhost1_write_retargets_link) {
   CHECK_STR(std::string(calls[0].data.begin() + 10, calls[0].data.end()), "192.0.2.50,8899,TCP");
 }
 
-TEST(core_vdtu_advertises_endpoint_write) {
+TEST(core_vdtu_advertises_endpoint_write_and_reboot) {
   CollectorProfile profile = Fixture::make_profile();
-  CHECK(build_vdtu_capabilities(profile, CoreConfig{}).find("endpoint_write") != std::string::npos);
+  const std::string capabilities = build_vdtu_capabilities(profile, CoreConfig{});
+  CHECK(capabilities.find("endpoint_write") != std::string::npos);
+  CHECK(capabilities.find("reboot") != std::string::npos);
 }
 
 TEST(parse_uart_settings_forms) {
