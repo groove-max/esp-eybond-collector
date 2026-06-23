@@ -1,9 +1,24 @@
 # Advanced ESP32 BLE provisioning profile.
 #
-# This is YAML-only for the first release, not a web-installer binary. BLE +
-# Wi-Fi can exceed small default app partitions, especially when api: and
-# captive_portal: are also enabled. Use an ESP32 board with enough flash and
-# adjust the partition/profile if needed.
+# Adds the SmartESS-compatible BLE Wi-Fi pairing: the EyeBond Local integration
+# can put the bridge onto Wi-Fi over Bluetooth, exactly as it would a factory
+# collector (an alternative to the captive portal). BLE provisioning needs
+# on-chip BLE, so it is ESP32-only, and it requires the esp32_ble_server: block
+# below.
+#
+# IMPORTANT — image size: BLE (Bluedroid) + Wi-Fi is large, and the real flashed
+# image is ~12 KB bigger than ESPHome's reported "Flash %" (IDF image header +
+# padding). On the default 4 MB app slot (~1.79 MB) this profile only fits once
+# api:, captive_portal: and the baud select: are dropped — otherwise the image
+# silently overflows the partition and the board boot-loops
+# ("Image length ... doesn't fit"). They are therefore omitted here:
+#   - captive_portal: BLE provisioning is the alternative, so it is redundant.
+#   - api:/select:    the EyeBond Local integration talks to the bridge over its
+#                     own UDP/TCP protocol, not the ESPHome API, so nothing is
+#                     lost for the integration. (The baud select needs api: to
+#                     show up in HA anyway.)
+# OTA still works without api:. To add them back, use a board with more flash
+# and a larger app-partition layout.
 
 esphome:
   name: eybond-bridge-ble
@@ -14,15 +29,16 @@ esp32:
     type: arduino
 
 logger:
-  level: INFO
+  level: INFO  # DEBUG strings would push the BLE+Wi-Fi image over the 4 MB app slot
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  ap:
-    ssid: "Eybond-Bridge Setup"
-
-captive_portal:
+  # Default setup network name is the synthetic collector PN, for example V00000...
+  # To force a custom setup AP name instead, replace the line below with:
+  # ap:
+  #   ssid: "My EyeBond Bridge Setup"
+  ap: {}
 
 ota:
   - platform: esphome
@@ -31,6 +47,8 @@ external_components:
   - source: github://groove-max/esp-eybond-collector
     components: [eybond_collector]
 
+# The BLE GATT server. eybond_collector attaches its SmartESS-compatible
+# provisioning service to it at runtime; no characteristics are declared here.
 esp32_ble_server:
 
 uart:
@@ -48,11 +66,3 @@ eybond_collector:
   flow_control_pin: GPIO4  # RS485 DE+RE; leave unconnected for TTL/RS232
   status_led_pin: GPIO2    # built-in LED on many ESP-WROOM-32 DevKit boards; do not add external pulls
   ble_provisioning: true
-
-select:
-  - platform: eybond_collector
-    eybond_collector_id: bridge
-    name: "Inverter UART baud rate"
-    restore_value: true
-
-api:

@@ -53,7 +53,7 @@ def expected_vectors() -> dict[str, bytes]:
     ):
         vectors[f"at_{command}"] = build_at_reply(command, profile=PROFILE, cloud_endpoint=CLOUD_ENDPOINT)
     vectors["at_VDTU"] = (
-        b"AT+VDTU:esp-collector,0.1.4;"
+        b"AT+VDTU:esp-collector,0.1.5;"
         b"features=local_only,no_cloud,wifi_params,endpoint_write,reboot;"
         b"uart=2400,8,1,NONE;spacing_ms=850;queue=4\r\n"
     )

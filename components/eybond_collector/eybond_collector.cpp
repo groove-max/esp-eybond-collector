@@ -748,7 +748,7 @@ void EybondCollector::configure_fallback_ap_(const std::string &pn) {
 
   auto ap = wifi::global_wifi_component->get_ap();
   const std::string current = ap.get_ssid();
-  if (!current.empty() && current != "Eybond-Bridge Setup") {
+  if (!current.empty()) {
     return;  // Respect a user-provided fallback AP name.
   }
 

@@ -181,7 +181,7 @@ def _write_web(output: Path, version: str) -> None:
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ESP EyeBond Collector Installer</title>
+    <title>ESP EyeBond Collector</title>
     <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
     <style>
       body {{ font-family: system-ui, sans-serif; max-width: 980px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #1f2933; }}
@@ -208,7 +208,7 @@ def _write_web(output: Path, version: str) -> None:
   </head>
   <body>
     <div class="topbar">
-      <h1>ESP EyeBond Collector Installer</h1>
+      <h1>ESP EyeBond Collector</h1>
       <div class="lang-switch" aria-label="Language">
         <button type="button" data-lang-button="uk" aria-pressed="true">Українська</button>
         <button type="button" data-lang-button="en" aria-pressed="false">English</button>
@@ -218,7 +218,7 @@ def _write_web(output: Path, version: str) -> None:
     <section data-lang-panel="uk" class="active" lang="uk">
       <p>Версія: {version}</p>
       <p class="warning">Обирайте готовий варіант тільки якщо ваша плата і підключення відповідають наведеним пінам. Якщо піни інші, використовуйте YAML-приклади ESPHome.</p>
-      <p class="note">Для багатьох ESP32-плат перед прошивкою потрібно затиснути кнопку <strong>BOOT</strong>, натиснути <strong>Прошити плату</strong>, вибрати USB-порт і відпустити BOOT після початку підключення або стирання flash.</p>
+      <p class="note">Для багатьох ESP32-плат перед прошивкою потрібно затиснути кнопку <strong>BOOT</strong>, натиснути <strong>Прошити плату</strong>, вибрати USB-порт і відпустити BOOT після початку підключення або стирання пам'яті.</p>
       <p class="danger">Якщо з'явилась помилка <strong>Failed to initialize</strong>, затисніть BOOT і спробуйте ще раз. Якщо після кнопки <strong>Continue</strong> лишився нескінченний індикатор прогресу, перезавантажте цю сторінку.</p>
       <p><button class="reload" type="button" onclick="window.location.reload()">Перезавантажити сторінку прошивки</button></p>
       <div class="grid">

@@ -27,12 +27,14 @@ BLE and BK72xx are not shipped as web binaries in the first release. They remain
 
 ## Local release build
 
+Run this with `esphome` on `PATH` (e.g. an activated virtualenv); the script finds
+it by default. Pass `--esphome /path/to/esphome` to override.
+
 ```bash
 python3 tools/build_web_release.py \
   --compile \
   --local-source \
-  --esphome .venv/bin/esphome \
-  --version v0.1.0
+  --version v0.1.5
 ```
 
 Output:
@@ -43,8 +45,14 @@ Output:
 
 ## Before tagging
 
-1. Confirm the release examples still match the documented pinout.
-2. Confirm `examples/secrets.yaml` is not committed.
-3. Run host tests.
-4. Run a local web release build if ESPHome dependencies are available.
-5. Create and push the release tag.
+1. Bump the version: `BRIDGE_VERSION` in `components/eybond_collector/profile.h`, and
+   the matching `esp-collector,<version>` strings in `host_tests/cross_check.py`,
+   `host_tests/test_at.cpp` and `host_tests/test_core.cpp` (the host tests assert the
+   VDTU capability string, so they must move together).
+2. Add the new version's entry to [`CHANGELOG.md`](../CHANGELOG.md).
+3. Confirm the release examples still match the documented pinout.
+4. Confirm `examples/secrets.yaml` is not committed.
+5. Run host tests (`make -C host_tests test`) and `cross_check.py`.
+6. Run a local web release build if ESPHome dependencies are available.
+7. Create and push the release tag (`git tag vX.Y.Z && git push origin vX.Y.Z`) — the
+   release workflow then builds the binaries and deploys the web installer.

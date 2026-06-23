@@ -19,8 +19,11 @@ logger:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  ap:
-    ssid: "Eybond-Bridge Setup"
+  # Default setup network name is the synthetic collector PN, for example V00000...
+  # To force a custom setup AP name instead, replace the line below with:
+  # ap:
+  #   ssid: "My EyeBond Bridge Setup"
+  ap: {}
 
 captive_portal:
 

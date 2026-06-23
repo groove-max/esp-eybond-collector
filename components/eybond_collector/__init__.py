@@ -88,7 +88,7 @@ def _final_validate(config):
         raise cv.Invalid(
             "ble_provisioning requires an 'esp32_ble_server:' entry in your YAML — "
             "it provides the BLE GATT server the bridge attaches to. Add an empty "
-            "'esp32_ble_server:' block (see examples/esp32-c3-ble.yaml)."
+            "'esp32_ble_server:' block (see examples/esp32-ble.yaml)."
         )
     return config
 

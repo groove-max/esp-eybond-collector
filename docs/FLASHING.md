@@ -202,7 +202,7 @@ The ESPHome baud-rate select belongs to the ESPHome device. For normal use, pref
 
 On BK72xx / LibreTiny, runtime baud-rate switching is not available. Change `baud_rate:` in YAML and reflash. A reboot alone is not enough because the board initializes UART from the compiled YAML value.
 
-The ESP32 BLE profile is YAML-only in the first release. Use it only on boards with enough flash/app partition space, and adjust the profile if BLE + `api:` + `captive_portal:` does not fit.
+The ESP32 BLE profile is YAML-only in the first release. BLE + Wi-Fi is large, so to fit the default 4 MB app partition the profile omits `api:`, `captive_portal:` and the baud `select:` (BLE provisioning replaces the captive portal; the EyeBond Local integration uses its own protocol, not the ESPHome API). OTA still works. To add those back, use a board with more flash and a larger app-partition layout — otherwise the image silently overflows and the board boot-loops.
 
 ## Status LED
 

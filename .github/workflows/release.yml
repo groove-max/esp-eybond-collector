@@ -20,8 +20,8 @@ jobs:
     env:
       ESPHOME_VERSION: "2025.7.5"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install ESPHome
@@ -31,13 +31,13 @@ jobs:
       - name: Build web release
         run: python tools/build_web_release.py --compile --local-source --version "${GITHUB_REF_NAME}"
       - name: Upload release artifacts
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/web-release/web/firmware/*.bin
             dist/web-release/web/manifest-*.json
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist/web-release/web
 
@@ -47,4 +47,4 @@ jobs:
     steps:
       - name: Deploy Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

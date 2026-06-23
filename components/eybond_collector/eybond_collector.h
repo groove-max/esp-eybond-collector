@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -26,7 +27,6 @@
 
 #ifdef USE_EYBOND_BLE
 #include "esphome/components/esp32_ble_server/ble_characteristic.h"
-#include <vector>
 #endif
 
 namespace esphome {
@@ -54,7 +54,7 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   void loop() override;
   void dump_config() override;
   // Run just before Wi-Fi so the component can derive the virtual collector PN
-  // and replace the default fallback AP SSID before ESPHome starts SoftAP.
+  // and set the fallback AP SSID before ESPHome starts SoftAP.
   float get_setup_priority() const override { return setup_priority::WIFI + 0.5f; }
 
   void set_pn(const std::string &pn) { pn_override_ = pn; }

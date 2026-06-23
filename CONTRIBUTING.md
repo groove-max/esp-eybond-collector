@@ -42,8 +42,9 @@ components/eybond_collector/     # flat layout: ESPHome does not copy a componen
 
 ## Protocol Contract
 
-The behavioral specification is the integration's own fake collector:
-`ha-eybond-local/tests/helpers/fake_collector.py` and `.local/tools/fake_collector_lib.py`. The firmware is a port of that logic. When those files change, re-run `cross_check.py`.
+The behavioral specification is the **EyeBond Local** integration's own reference
+fake collector (`fake_collector.py` / its `fake_collector_lib.py` helper). The
+firmware is a port of that logic. When those files change, re-run `cross_check.py`.
 
 - **Discovery**: UDP `58899`, `set>server=IP:PORT;` → reply `rsp>server=2;` + reverse TCP to Home Assistant.
 - **Heartbeat**: FC=1 on connect, then periodic (default 60 s); payload is the PN truncated to 14 bytes. A server FC=1 is answered with its own `tid`.
@@ -71,39 +72,52 @@ EyeBond Local probes this on link-up. The `esp-collector,` prefix identifies a v
 
 ## Validation Pipeline
 
-Four levels, fastest first. The bench cycle runs them in order.
+Run the checks below from fastest to slowest. The first three are hardware-free
+and are the normal validation path for public contributions.
+
+> Test 1 needs only `g++`. Tests 2–3 import the **EyeBond Local** integration, so
+> check out [`ha-eybond-local`](https://github.com/groove-max/ha-eybond-local) as a
+> sibling directory of this repo. Run the Python/ESPHome commands in an environment
+> with `esphome` installed and on `PATH` (an activated virtualenv is easiest).
 
 ```bash
 # 1. Core host unit tests (plain g++, no hardware)
 cd host_tests && make test
 
 # 2. Byte-for-byte cross-check against the integration's own builders
-../../.venv/bin/python3 cross_check.py
+python3 cross_check.py
 
 # 3. Linux end-to-end: the real core (host_sim: POSIX sockets + a PTY in place of
 #    the UART) against the integration's protocol code — discovery, heartbeat, AT,
 #    the FC4 bridge, and timeouts
-../../.venv/bin/python3 e2e_sim.py
+python3 e2e_sim.py
 
-# host_sim can also run standalone — the real integration in Home Assistant
-# (or .local/tools) can talk to it, with a fake inverter on the PTY:
+# host_sim can also run standalone — the real EyeBond Local integration (in Home
+# Assistant) can talk to it, with a fake inverter on the PTY:
 make build/host_sim && ./build/host_sim --udp-port 58899
 
-# Build the firmware (esphome lives in the project-local .venv)
-.venv/bin/esphome compile examples/esp8266-d1-mini.yaml  # ESP8266 release preset
-.venv/bin/esphome compile examples/esp32-devkit.yaml     # ESP32 release preset
-
-# 4. FULL autonomous bench cycle (unit → cross-check → compile → OTA → hardware E2E)
-./bench_cycle.sh [device-address]
+# 4. Optional: compile the release presets
+esphome compile examples/esp8266-d1-mini.yaml  # ESP8266 release preset
+esphome compile examples/esp32-devkit.yaml     # ESP32 release preset
 ```
 
-### Hardware-in-the-loop bench (no inverter required)
+### Optional maintainer hardware checks
 
-An ESP8266 connected to the host by USB only. The same USB bridge that flashes the board exposes UART0, so the host plays the inverter: `host_tests/fake_pi30_serial.py` answers PI30 commands on `/dev/ttyUSB0` (`2400 8N1`) with the values from the integration's PI30 driver tests. `host_tests/bench_e2e.py` plays the Home Assistant side (discovery, reverse TCP, AT, FC4, collector parameters, baud switching) using the integration's own builders. The bench config is `examples/bench-esp8266.yaml` (synthetic PN hard-coded so no MAC-derived identity reaches logs; faster timings for quick iteration).
+The repository still contains a few low-level scripts that can help maintainers
+test a live board, but they are not part of the public validation contract and
+they expect a local hardware setup.
+
+One useful setup is an ESP board connected to the host by USB only. The same USB
+bridge that flashes the board exposes UART0, so the host can play the inverter:
+`host_tests/fake_pi30_serial.py` answers PI30 commands on `/dev/ttyUSB0`
+(`2400 8N1`) with values from the integration's PI30 driver tests.
+`host_tests/bench_e2e.py` can then play the Home Assistant side (discovery,
+reverse TCP, AT, FC4, collector parameters, baud switching) using the
+integration's own builders.
 
 `host_tests/bench_probe.py` runs the integration's real `Pi30Driver.async_probe()` against the live device — the same detection step the Home Assistant config flow performs.
 
-Bench gotchas worth knowing:
+Hardware-check gotchas worth knowing:
 
 - The first flash is over USB; every later flash is OTA, leaving the USB port free for the fake inverter.
 - Opening the serial port pulses DTR/RTS and reboots the board, so `bench_e2e` retries discovery until Wi-Fi is back (~10–15 s).
