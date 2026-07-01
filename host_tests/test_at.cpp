@@ -10,6 +10,7 @@ CollectorProfile test_profile() {
   CollectorProfile profile;
   profile.pn = "V00000200000000001";
   profile.uart = "2400,8,1,NONE";
+  profile.firmware_version = "1.0.0";  // fixed fixture value, decoupled from BRIDGE_VERSION
   return profile;
 }
 
@@ -60,7 +61,7 @@ TEST(at_replies_match_python_spec) {
   CHECK_STR(reply_for("AT+WFSS?\r\n"), "AT+WFSS:-55\r\n");
   CHECK_STR(reply_for("AT+UART?\r\n"), "AT+UART:2400,8,1,NONE\r\n");
   CHECK_STR(reply_for("AT+DTUTYPE?\r\n"), "AT+DTUTYPE:Wi-Fi.DTU\r\n");
-  CHECK_STR(reply_for("AT+FWVER?\r\n"), "AT+FWVER:8.50.12.3\r\n");
+  CHECK_STR(reply_for("AT+FWVER?\r\n"), "AT+FWVER:1.0.0\r\n");
   CHECK_STR(reply_for("AT+CLDSRVHOST1?\r\n"), "AT+CLDSRVHOST1:192.0.2.10,8899,TCP\r\n");
   CHECK_STR(reply_for("AT+HTBT?\r\n"), "AT+HTBT:\r\n");
   CHECK_STR(reply_for("AT+LINK?\r\n"), "AT+LINK:connected\r\n");
@@ -81,19 +82,15 @@ TEST(at_lower_case_normalized) {
   CHECK_STR(command.command, "WFSS");
 }
 
-TEST(at_vdtu_capability_probe) {
-  // Default profile still advertises the ESP bridge identity. The firmware must
-  // not fall back to a factory-like empty VDTU reply because HA uses this probe
-  // to hide cloud-only controls for virtual collectors.
-  CHECK_STR(reply_for("AT+VDTU?\r\n"),
-            "AT+VDTU:esp-collector,0.1.5;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;"
-            "uart=2400,8,1,NONE\r\n");
+TEST(at_vdtu_no_longer_supported) {
+  // AT+VDTU was removed: real collectors time out on it, so the bridge must not
+  // answer it either. It now falls through to the unknown-command default (empty
+  // value); detection keys off the FC=2 param-6 hardware_version marker instead.
+  CHECK_STR(reply_for("AT+VDTU?\r\n"), "AT+VDTU:\r\n");
+}
 
-  CollectorProfile profile = test_profile();
-  profile.vdtu = "esp-collector,0.1.5;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;uart=2400,8,1,NONE;spacing_ms=850;queue=4";
-  AtCommand command;
-  CHECK(parse_at_line("AT+VDTU?\r\n", &command));
-  CHECK_STR(build_at_reply(command, profile, test_runtime()),
-            "AT+VDTU:esp-collector,0.1.5;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;uart=2400,8,1,NONE;"
-            "spacing_ms=850;queue=4\r\n");
+TEST(profile_default_firmware_is_bridge_version) {
+  // The shipped default firmware version is OUR bridge version, never the factory
+  // logger's value. Detection uses the FC=2 param-6 token, not this field.
+  CHECK_STR(CollectorProfile{}.firmware_version, eybond::BRIDGE_VERSION);
 }

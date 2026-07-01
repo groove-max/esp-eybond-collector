@@ -7,7 +7,7 @@ namespace {
 
 // Mock Actions that records what the parser asked the platform to do.
 struct MockBleActions : public BleProvisioning::Actions {
-  std::string fw = "8.50.12.3";
+  std::string fw = "1.0.0";
   std::string at = "1.11";
   bool connected = false;
   std::vector<BleWifiNetwork> scan;
@@ -33,7 +33,7 @@ struct MockBleActions : public BleProvisioning::Actions {
 TEST(ble_version_probes) {
   MockBleActions actions;
   BleProvisioning prov(&actions);
-  CHECK_STR(prov.handle_command("AT+FWVER?"), "AT+FWVER:8.50.12.3");
+  CHECK_STR(prov.handle_command("AT+FWVER?"), "AT+FWVER:1.0.0");
   CHECK_STR(prov.handle_command("AT+ATVER?"), "AT+ATVER:1.11");
 }
 
@@ -41,7 +41,7 @@ TEST(ble_tolerates_crlf_and_whitespace) {
   MockBleActions actions;
   BleProvisioning prov(&actions);
   // The client sends some commands with a trailing CRLF (append_crlf=True).
-  CHECK_STR(prov.handle_command("AT+FWVER?\r\n"), "AT+FWVER:8.50.12.3");
+  CHECK_STR(prov.handle_command("AT+FWVER?\r\n"), "AT+FWVER:1.0.0");
   CHECK_STR(prov.handle_command("  AT+ATVER?  "), "AT+ATVER:1.11");
 }
 

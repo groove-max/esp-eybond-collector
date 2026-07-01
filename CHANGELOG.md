@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.6] - 2026-07-01
+
+### Changed
+- **Bridge detection no longer uses an AT probe.** EyeBond Local now recognizes a
+  virtual bridge from the FC=2 hardware-version parameter (registry id 6), answered as
+  `esp-collector/<version>/<platform>`. This is PN-independent (a user may set a custom
+  PN, and a real collector's PN could collide) and timeout-free (factory collectors
+  reject unknown AT commands by timing out). The `<platform>` suffix (`ESP8266` /
+  `ESP32` / `BK72xx/RTL87xx`) also tells the integration whether runtime UART
+  reconfiguration is available.
+- **The connected-state status LED is now an activity light.** While the bridge is
+  connected the LED stays dark when idle and flickers in time with data moving between
+  Home Assistant, the bridge, and the inverter, instead of being solid on. The
+  not-connected states are unchanged (fast blink = no Wi-Fi, slow blink = no bridge
+  link). LED inversion remains config-driven through the pin's `inverted:` property.
+- **The default reported firmware version is now the bridge's own version, not the
+  factory logger's.** `AT+FWVER` / FC=2 param 5 previously answered with a hardcoded
+  original-collector firmware string; the bridge has no relation to that logger, so it
+  now reports `BRIDGE_VERSION` by default. A future release will let a reflashed unit
+  set the original value via YAML for the original-cloud path.
+- `BRIDGE_VERSION` bumped to `0.1.6`.
+
+### Removed
+- The `AT+VDTU` capability probe. Real collectors do not implement it (they time out on
+  it) and no public integration relied on it, so the firmware now treats `AT+VDTU?` as
+  an unknown command. Detection uses the FC=2 hardware-version marker described above.
+
 ## [0.1.5] - 2026-06-23
 
 ### Added
@@ -47,6 +74,7 @@ Home Assistant integration. Highlights:
 - Status LED indication and the `AT+VDTU` virtual-bridge capability probe.
 - Web installer (GitHub Pages) for the ESP8266 and ESP32 presets.
 
+[0.1.6]: https://github.com/groove-max/esp-eybond-collector/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/groove-max/esp-eybond-collector/compare/v0.1.4...v0.1.5
 [0.1.0]: https://github.com/groove-max/esp-eybond-collector/releases/tag/v0.1.0
 [0.1.4]: https://github.com/groove-max/esp-eybond-collector/releases/tag/v0.1.4

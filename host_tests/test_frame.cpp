@@ -33,13 +33,13 @@ TEST(build_frame_heartbeat_matches_python) {
 }
 
 TEST(build_frame_fc2_matches_python) {
-  // build_collector_request(7, b"\x00\x05" + b"8.50.12.3", devcode=0x0994, collector_addr=0x10, fcode=2)
+  // build_collector_request(7, b"\x00\x05" + b"1.0.0", devcode=0x0994, collector_addr=0x10, fcode=2)
   std::vector<uint8_t> payload = {0x00, 0x05};
-  const char *fw = "8.50.12.3";
-  payload.insert(payload.end(), fw, fw + 9);
+  const char *fw = "1.0.0";
+  payload.insert(payload.end(), fw, fw + 5);
   const std::vector<uint8_t> frame =
       build_frame(7, 0x0994, 0x10, FC_QUERY_COLLECTOR, payload.data(), payload.size());
-  CHECK_HEX(frame, "00070994000d10020005382e35302e31322e33");
+  CHECK_HEX(frame, "00070994000910020005312e302e30");
 }
 
 TEST(invalid_header_detected) {

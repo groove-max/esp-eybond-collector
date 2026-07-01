@@ -58,15 +58,24 @@ firmware is a port of that logic. When those files change, re-run `cross_check.p
 
 The PN is synthetic: `V00` + the 15-digit decimal MAC → the PN18 format `^[A-Z]\d{17}$` the integration accepts. Override with `pn:` (the schema validator accepts synthetic values only: a letter + 13/17 digits). `devcode` defaults to `0x0000`, which the integration handles through its `unknown_0x0000` profile.
 
-### AT+VDTU capability probe
+### Bridge detection
 
-The firmware answers `AT+VDTU?` with a capability string:
+The firmware identifies itself through the FC=2 **hardware version** parameter
+(registry id 6), which it answers as:
 
 ```
-AT+VDTU:esp-collector,<semver>;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;uart=<baud,data,stop,parity>;spacing_ms=<n>;queue=<n>
+esp-collector/<semver>/<platform>
 ```
 
-EyeBond Local probes this on link-up. The `esp-collector,` prefix identifies a virtual bridge so cloud-only flows can be hidden and an honest device name/version can be shown. Factory collectors do not return the prefix. Features advertise optional collector-side operations such as endpoint writes and restart. For every other command the bridge behavior remains compatible with the factory collector path.
+EyeBond Local reads this on link-up: the `esp-collector/` prefix marks a virtual
+bridge (so cloud-only flows are hidden and an honest device name is shown), the
+`<semver>` is surfaced for diagnostics, and `<platform>` (`ESP8266` / `ESP32` /
+`BK72xx/RTL87xx`) tells the integration whether runtime UART reconfiguration is
+available. Detection deliberately keys off this always-answered FC=2 field rather
+than an AT probe: factory collectors reject an unknown AT command by *timing
+out*, and the bridge must never be recognized by its PN — a user may set a custom
+PN and a real collector's PN could collide. For every other command the bridge
+behavior stays compatible with the factory collector path.
 
 ---
 
@@ -155,8 +164,8 @@ These are inherited from the parent project and must not be weakened:
 
 ## Roadmap
 
-- **Integration-side support:** EyeBond Local detects the `esp-collector,` VDTU prefix,
-  gates cloud-only flows, forces the collector operation mode to "HA only" for a bridge,
-  and shows an honest device name.
+- **Integration-side support:** EyeBond Local detects the `esp-collector/` hardware-version
+  token, gates cloud-only flows, forces the collector operation mode to "HA only" for a
+  bridge, and shows an honest device name.
 - **ESP32 + ESP-IDF adapter** — a socket glue layer over `CollectorCore::Actions`.
 - **BLE provisioning:** ESP8266 has no BLE radio. ESP32 builds can expose the bridge's BLE Wi-Fi provisioning path when `esp32_ble_server:` and `ble_provisioning: true` are enabled; keep an eye on firmware image size because BLE + Wi-Fi can exceed small default partitions.

@@ -219,8 +219,7 @@ Indication:
 |---|---|
 | Fast blink | The board is not connected to Wi-Fi yet. |
 | Slow blink | Wi-Fi is connected, but EyeBond Local has not connected to the bridge yet. |
-| Solid on | The bridge is connected and idle. |
-| Short blink during operation | Data is moving between Home Assistant, the bridge, and the inverter. |
+| Dark, flickers on traffic | The bridge is connected: the LED stays off when idle and flickers in time with data moving between Home Assistant, the bridge, and the inverter. |
 
 If your board uses another LED pin or inverted logic, adjust `status_led_pin` in YAML.
 

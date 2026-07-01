@@ -48,13 +48,6 @@ struct CoreConfig {
   size_t forward_queue_limit = 4;
 };
 
-// Compose the AT+VDTU capability value the bridge advertises, e.g.
-// "esp-collector,0.2.0;features=local_only,no_cloud,reboot;uart=2400,8,1,NONE;spacing_ms=850;queue=4".
-// A future integration version can probe this once to detect the virtual bridge;
-// factory collectors answer the query differently (empty/garbage), so absence of
-// this exact "esp-collector," prefix means "factory".
-std::string build_vdtu_capabilities(const CollectorProfile &profile, const CoreConfig &config);
-
 // Parse a collector server endpoint string into host + port. Accepts the
 // factory "IP,PORT,TCP" form (FC=2 param 21 / AT+CLDSRVHOST1) as well as
 // "IP,PORT" and "IP:PORT". Returns false on a malformed or out-of-range value.
@@ -138,8 +131,8 @@ class CollectorCore {
   // Optional static server endpoint (skip waiting for discovery).
   void set_server_endpoint(const std::string &host, uint16_t port, uint32_t now_ms);
 
-  // Reflect a runtime UART reconfiguration in AT+UART, FC=2 param 34 and the
-  // AT+VDTU capability string. uart format: "9600,8,1,NONE".
+  // Reflect a runtime UART reconfiguration in AT+UART and FC=2 param 34.
+  // uart format: "9600,8,1,NONE".
   void update_uart_description(const std::string &uart);
 
   bool connected() const { return link_state_ == LinkState::CONNECTED; }

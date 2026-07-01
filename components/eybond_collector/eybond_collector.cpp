@@ -57,7 +57,6 @@ void EybondCollector::setup() {
     profile.pn = eybond::synthesize_pn(mac);
   }
   profile.uart = this->uart_settings_string_();
-  profile.vdtu = eybond::build_vdtu_capabilities(profile, core_config_);
 
   core_ = std::unique_ptr<eybond::CollectorCore>(
       new eybond::CollectorCore(this, profile, core_config_));
@@ -185,15 +184,28 @@ void EybondCollector::loop() {
 
 bool EybondCollector::query_param(uint8_t parameter, std::string *out) {
   switch (parameter) {
-    case 6:  // hardware_version
+    case 6: {  // hardware_version
+      // Virtual-bridge marker, carried on a parameter every collector answers
+      // (FC=2 param 6), so the integration identifies this bridge WITHOUT any
+      // unsupported AT probe (which real collectors ignore -> timeout) and WITHOUT
+      // the PN (which a user may set to any value, e.g. a real collector's). Format:
+      //   "esp-collector/<bridge-version>/<platform>"
+      // HA keys the bridge off the "esp-collector/" prefix, reads the version for
+      // diagnostics, and matches the platform suffix (bk72/rtl87/libretiny) to
+      // gate runtime-UART capability. Format is intentionally extensible: parsers
+      // must ignore extra trailing segments (reserved for future capability flags,
+      // e.g. a cloud-passthrough hint on reflashed factory hardware).
+      const char *platform =
 #if defined(USE_ESP8266)
-      *out = "ESP8266";
+          "ESP8266";
 #elif defined(USE_LIBRETINY)
-      *out = "BK72xx/RTL87xx";
+          "BK72xx/RTL87xx";
 #else
-      *out = "ESP32";
+          "ESP32";
 #endif
+      *out = std::string("esp-collector/") + eybond::BRIDGE_VERSION + "/" + platform;
       return true;
+    }
     case 16: {  // local_ip_address (IPAddress::toString() is absent on LibreTiny)
       const IPAddress ip = WiFi.localIP();
       char buffer[16];
@@ -694,11 +706,6 @@ void EybondCollector::update_status_led_(uint32_t now) {
     return;
   }
 
-  if (static_cast<int32_t>(status_led_activity_until_ms_ - now) > 0) {
-    this->write_status_led_(false);
-    return;
-  }
-
   if (!network::is_connected()) {
     // Wi-Fi is not connected yet: quick blink so the board is visibly alive.
     if (now - status_led_last_toggle_ms_ >= 250) {
@@ -717,8 +724,11 @@ void EybondCollector::update_status_led_(uint32_t now) {
     return;
   }
 
-  // Connected and idle.
-  this->write_status_led_(true);
+  // Connected: a combined RX+TX activity light — lit while data is flowing on
+  // either the network (TCP) or the inverter (UART) side, dark when idle. The
+  // activity window is (re)armed by note_activity_() on every send/receive, so a
+  // single packet gives a ~90 ms flash and a burst holds the LED on.
+  this->write_status_led_(static_cast<int32_t>(status_led_activity_until_ms_ - now) > 0);
 }
 
 void EybondCollector::write_status_led_(bool on) {

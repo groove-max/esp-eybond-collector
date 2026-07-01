@@ -55,6 +55,7 @@ struct Fixture {
     CollectorProfile profile;
     profile.pn = "V00000200000000001";
     profile.uart = "2400,8,1,NONE";
+    profile.firmware_version = "1.0.0";  // fixed fixture value, decoupled from BRIDGE_VERSION
     return profile;
   }
 
@@ -144,8 +145,8 @@ TEST(core_fc2_param5_returns_firmware) {
   fx.feed_frame(7, 0x0994, 0x10, FC_QUERY_COLLECTOR, {5}, 2000);
   const auto calls = fx.actions.take();
   CHECK(calls.size() == 1);
-  // build_collector_request(7, b"\x00\x05"+b"8.50.12.3", devcode=0x0994, collector_addr=0x10, fcode=2)
-  CHECK_HEX(calls[0].data, "00070994000d10020005382e35302e31322e33");
+  // build_collector_request(7, b"\x00\x05"+b"1.0.0", devcode=0x0994, collector_addr=0x10, fcode=2)
+  CHECK_HEX(calls[0].data, "00070994000910020005312e302e30");
 }
 
 TEST(core_fc2_other_param_fails) {
@@ -348,43 +349,6 @@ TEST(core_static_server_endpoint_without_discovery) {
   CHECK(calls.size() == 1);
   CHECK_STR(calls[0].kind, "tcp_connect");
   CHECK_STR(calls[0].host, "192.0.2.50");
-}
-
-TEST(core_vdtu_capabilities_string) {
-  CollectorProfile profile = Fixture::make_profile();
-  CoreConfig config;
-  CHECK_STR(build_vdtu_capabilities(profile, config),
-            "esp-collector,0.1.5;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;uart=2400,8,1,NONE;"
-            "spacing_ms=850;queue=4");
-
-  config.command_spacing_ms = 100;
-  config.forward_queue_limit = 8;
-  profile.uart = "9600,8,1,NONE";
-  CHECK_STR(build_vdtu_capabilities(profile, config),
-            "esp-collector,0.1.5;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;uart=9600,8,1,NONE;"
-            "spacing_ms=100;queue=8");
-}
-
-TEST(core_vdtu_served_over_tcp) {
-  MockActions actions;
-  CollectorProfile profile = Fixture::make_profile();
-  CoreConfig config;
-  profile.vdtu = build_vdtu_capabilities(profile, config);
-  CollectorCore core(&actions, profile, config);
-
-  const std::string discovery = "set>server=192.0.2.10:8899;";
-  core.on_udp_datagram(reinterpret_cast<const uint8_t *>(discovery.data()), discovery.size(), 1000);
-  core.loop(1000);
-  core.on_tcp_connected(1100);
-  actions.calls.clear();
-
-  const std::string line = "AT+VDTU?\r\n";
-  core.on_tcp_data(reinterpret_cast<const uint8_t *>(line.data()), line.size(), 2000);
-  const auto calls = actions.take();
-  CHECK(calls.size() == 1);
-  CHECK_STR(std::string(calls[0].data.begin(), calls[0].data.end()),
-            "AT+VDTU:esp-collector,0.1.5;features=local_only,no_cloud,wifi_params,endpoint_write,reboot;uart=2400,8,1,NONE;"
-            "spacing_ms=850;queue=4\r\n");
 }
 
 namespace {
@@ -590,7 +554,6 @@ TEST(core_runtime_uart_reconfiguration) {
   UartActions actions;
   CollectorProfile profile = Fixture::make_profile();
   CoreConfig config;
-  profile.vdtu = build_vdtu_capabilities(profile, config);
   CollectorCore core(&actions, profile, config);
 
   const std::string discovery = "set>server=192.0.2.10:8899;";
@@ -610,7 +573,7 @@ TEST(core_runtime_uart_reconfiguration) {
   // The platform applies the change and reports it back to the core...
   core.update_uart_description("9600,8,1,NONE");
 
-  // ...which is then visible via AT+UART?, FC=2 param 34 and AT+VDTU.
+  // ...which is then visible via AT+UART? and FC=2 param 34.
   const std::string query = "AT+UART?\r\n";
   core.on_tcp_data(reinterpret_cast<const uint8_t *>(query.data()), query.size(), 2001);
   calls = actions.take();
@@ -623,13 +586,6 @@ TEST(core_runtime_uart_reconfiguration) {
   calls = actions.take();
   CHECK(calls.size() == 1);
   CHECK_STR(std::string(calls[0].data.begin() + 10, calls[0].data.end()), "9600");
-
-  const std::string vdtu_query = "AT+VDTU?\r\n";
-  core.on_tcp_data(reinterpret_cast<const uint8_t *>(vdtu_query.data()), vdtu_query.size(), 2003);
-  calls = actions.take();
-  CHECK(calls.size() == 1);
-  const std::string vdtu_reply(calls[0].data.begin(), calls[0].data.end());
-  CHECK(vdtu_reply.find(";uart=9600,8,1,NONE;") != std::string::npos);
 }
 
 TEST(parse_server_endpoint_forms) {
@@ -728,13 +684,6 @@ TEST(core_at_cldsrvhost1_write_retargets_link) {
   CHECK(calls.size() == 1);
   CHECK(calls[0].data[8] == 0 && calls[0].data[9] == 21);
   CHECK_STR(std::string(calls[0].data.begin() + 10, calls[0].data.end()), "192.0.2.50,8899,TCP");
-}
-
-TEST(core_vdtu_advertises_endpoint_write_and_reboot) {
-  CollectorProfile profile = Fixture::make_profile();
-  const std::string capabilities = build_vdtu_capabilities(profile, CoreConfig{});
-  CHECK(capabilities.find("endpoint_write") != std::string::npos);
-  CHECK(capabilities.find("reboot") != std::string::npos);
 }
 
 TEST(parse_uart_settings_forms) {

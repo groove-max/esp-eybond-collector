@@ -7,23 +7,22 @@
 
 namespace eybond {
 
-// Bridge firmware version, advertised via AT+VDTU (virtual-DTU capability probe).
-constexpr const char *BRIDGE_VERSION = "0.1.5";
+// Bridge firmware version, embedded in the FC=2 param-6 hardware_version marker
+// ("esp-collector/<version>/<platform>") the integration keys the bridge on.
+constexpr const char *BRIDGE_VERSION = "0.1.6";
 
 struct CollectorProfile {
   std::string pn;  // set at startup (config override or synthesized from MAC)
-  std::string firmware_version = "8.50.12.3";
+  // AT+FWVER / FC=2 param 5. Defaults to OUR bridge version — the factory logger's
+  // version is deliberately not hardcoded here; a reflashed unit that must mirror the
+  // original for the original cloud can override it via YAML later (see roadmap).
+  std::string firmware_version = BRIDGE_VERSION;
   std::string at_version = "1.11";
   std::string collector_type = "Wi-Fi.DTU";
   std::string upload_mode = "OFF";
   std::string uart = "9600,8,1,NONE";  // reported AT+UART value; keep in sync with real UART config
   std::string link_status = "connected";
   std::string wifi_scan_list;  // AT+INTPARA49
-  // AT+VDTU capability string ("esp-collector,<ver>;features=...;uart=...").
-  // The firmware must always identify itself as an ESP bridge. If this field is
-  // empty, the AT handler emits a minimal fallback identity instead of a
-  // factory-like empty reply.
-  std::string vdtu;
 };
 
 }  // namespace eybond

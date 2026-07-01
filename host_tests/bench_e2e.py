@@ -195,13 +195,9 @@ def main() -> int:
             rssi_line = link.recv_line()
             check(rssi_line.startswith(b"AT+WFSS:-") and rssi_line.endswith(b"\r\n"), f"AT+WFSS {rssi_line!r}")
             link.send(b"AT+VDTU?\r\n")
-            vdtu_line = link.recv_line()
-            check(
-                vdtu_line.startswith(b"AT+VDTU:esp-collector,")
-                and b";features=local_only,no_cloud,wifi_params,endpoint_write,reboot;" in vdtu_line
-                and b";uart=2400,8,1,NONE;" in vdtu_line,
-                f"AT+VDTU {vdtu_line!r}",
-            )
+            # AT+VDTU was removed; the bridge treats it as an unknown command and
+            # replies with an empty value (detection uses the FC=2 param-6 token).
+            check(link.recv_line() == b"AT+VDTU:\r\n", "AT+VDTU removed")
         link.run_step("AT channel", step_at)
 
         # 5. FC4 PI30 round-trips through the real UART.

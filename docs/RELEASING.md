@@ -45,10 +45,10 @@ Output:
 
 ## Before tagging
 
-1. Bump the version: `BRIDGE_VERSION` in `components/eybond_collector/profile.h`, and
-   the matching `esp-collector,<version>` strings in `host_tests/cross_check.py`,
-   `host_tests/test_at.cpp` and `host_tests/test_core.cpp` (the host tests assert the
-   VDTU capability string, so they must move together).
+1. Bump the version: `BRIDGE_VERSION` in `components/eybond_collector/profile.h` is the
+   single source of truth. It is embedded in the FC=2 param-6 hardware-version marker
+   (`esp-collector/<version>/<platform>`) that EyeBond Local keys the bridge on; no host
+   test hard-codes it, so nothing else needs to move with it.
 2. Add the new version's entry to [`CHANGELOG.md`](../CHANGELOG.md).
 3. Confirm the release examples still match the documented pinout.
 4. Confirm `examples/secrets.yaml` is not committed.

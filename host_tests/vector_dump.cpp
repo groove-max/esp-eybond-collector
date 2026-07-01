@@ -27,6 +27,7 @@ int main() {
   CollectorProfile profile;
   profile.pn = "V00000200000000001";
   profile.uart = "2400,8,1,NONE";
+  profile.firmware_version = "1.0.0";  // fixed fixture value, matches cross_check.py
 
   AtRuntimeValues runtime;
   runtime.cloud_endpoint = "192.0.2.10,8899,TCP";
@@ -46,9 +47,8 @@ int main() {
   fc2.insert(fc2.end(), profile.firmware_version.begin(), profile.firmware_version.end());
   dump("fc2_param5", build_frame(7, 0x0994, 0x10, FC_QUERY_COLLECTOR, fc2.data(), fc2.size()));
 
-  profile.vdtu = build_vdtu_capabilities(profile, CoreConfig{});
   const char *queries[] = {"DTUPN", "ATVER", "ENUPMODE", "SYST", "WFSS",  "UART",      "DTUTYPE",
-                           "FWVER", "CLDSRVHOST1", "HTBT", "LINK", "INTPARA49", "VDTU", "UNKNOWNCMD"};
+                           "FWVER", "CLDSRVHOST1", "HTBT", "LINK", "INTPARA49", "UNKNOWNCMD"};
   for (const char *name : queries) {
     AtCommand command;
     const std::string line = std::string("AT+") + name + "?\r\n";

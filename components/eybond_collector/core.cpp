@@ -61,14 +61,6 @@ bool parse_uart_settings(const std::string &value, UartSettings *out) {
   return true;
 }
 
-std::string build_vdtu_capabilities(const CollectorProfile &profile, const CoreConfig &config) {
-  return std::string("esp-collector,") + BRIDGE_VERSION +
-         ";features=local_only,no_cloud,wifi_params,endpoint_write,reboot" +
-         ";uart=" + profile.uart +
-         ";spacing_ms=" + std::to_string(config.command_spacing_ms) +
-         ";queue=" + std::to_string(config.forward_queue_limit);
-}
-
 bool parse_server_endpoint(const std::string &value, std::string *host, uint16_t *port) {
   // Split off a trailing ",TCP"/",UDP" transport token if present.
   std::string body = value;
@@ -143,9 +135,6 @@ void CollectorCore::on_udp_datagram(const uint8_t *data, size_t len, uint32_t no
 
 void CollectorCore::update_uart_description(const std::string &uart) {
   profile_.uart = uart;
-  if (!profile_.vdtu.empty()) {
-    profile_.vdtu = build_vdtu_capabilities(profile_, config_);
-  }
 }
 
 void CollectorCore::set_server_endpoint(const std::string &host, uint16_t port, uint32_t now_ms) {
