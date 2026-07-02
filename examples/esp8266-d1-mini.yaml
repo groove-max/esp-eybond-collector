@@ -50,6 +50,8 @@ eybond_collector:
   status_led_pin:
     number: GPIO2           # D4 / built-in LED on Wemos D1 mini
     inverted: true
+  # com_led_pin: GPIO15     # optional separate LED for inverter-comms activity (see docs/FLASHING.md);
+  #                           without it, status_led_pin alone shows both connection state and com flicker
   # pn: V00000200000000001  # optional synthetic PN; default is derived from MAC
   # server_host: 192.0.2.10 # optional static HA address; discovery is the default
 

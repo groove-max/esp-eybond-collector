@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.7] - 2026-07-02
+
+### Added
+- **Separate STATUS and COM LEDs, like a factory collector.** A new `com_led_pin`
+  drives an inverter-communication activity LED alongside the existing `status_led_pin`
+  connection-state LED. With both pins, each LED has one job. With only `status_led_pin`
+  (single-LED dev boards) that LED shows both — solid when the bridge is connected and
+  idle, flickering while the inverter is talked to. With only `com_led_pin` it is a pure
+  activity light. Each pin takes the full pin schema, so per-pin `inverted:` is available.
+
+### Changed
+- **The activity (COM) indicator now flickers instead of holding lit, and reflects real
+  inverter transactions only.** It is armed by inverter UART traffic — a forward and the
+  reply *while that forward is awaiting a response* — never by HA↔bridge TCP chatter, and
+  it *toggles* (capped at ~10 Hz) rather than staying lit for an activity window, so a
+  heavy read/write load reads as a fast flicker and never a solid glow.
+- **Idle-line RX noise no longer lights the COM LED.** Bytes arriving on the inverter UART
+  when no forward is pending (electrical noise on a floating/unwired RX, or an idle bus)
+  are ignored, so a bridge connected to HA before its inverter is wired or powered on
+  stays solid instead of flickering constantly.
+- `BRIDGE_VERSION` bumped to `0.1.7`.
+
 ## [0.1.6] - 2026-07-01
 
 ### Changed
@@ -74,6 +96,7 @@ Home Assistant integration. Highlights:
 - Status LED indication and the `AT+VDTU` virtual-bridge capability probe.
 - Web installer (GitHub Pages) for the ESP8266 and ESP32 presets.
 
+[0.1.7]: https://github.com/groove-max/esp-eybond-collector/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/groove-max/esp-eybond-collector/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/groove-max/esp-eybond-collector/compare/v0.1.4...v0.1.5
 [0.1.0]: https://github.com/groove-max/esp-eybond-collector/releases/tag/v0.1.0

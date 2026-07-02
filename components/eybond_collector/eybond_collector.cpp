@@ -39,10 +39,20 @@ namespace eybond_collector {
 
 static const char *const TAG = "eybond_collector";
 
+// Status/com LED timing.
+static const uint32_t STATUS_FAST_BLINK_MS = 250;   // no Wi-Fi
+static const uint32_t STATUS_SLOW_BLINK_MS = 1000;  // Wi-Fi up, bridge not connected
+static const uint32_t COM_FLICKER_MS = 50;          // com toggle cap -> ~10 Hz flicker, never solid
+static const uint32_t COM_HOLD_MS = 120;            // treat as "data flowing" for this long after an event
+
 void EybondCollector::setup() {
   if (status_led_pin_ != nullptr) {
     status_led_pin_->setup();
-    this->write_status_led_(false);
+    this->write_led_(status_led_pin_, &status_led_state_, false);
+  }
+  if (com_led_pin_ != nullptr) {
+    com_led_pin_->setup();
+    this->write_led_(com_led_pin_, &com_led_state_, false);
   }
 
   baud_pref_ = global_preferences->make_preference<uint32_t>(BAUD_PREF_HASH);
@@ -117,7 +127,7 @@ void EybondCollector::loop() {
       core_->on_tcp_closed(now);
     }
     this->process_reboot_(now);
-    this->update_status_led_(now);
+    this->update_leds_(now);
     return;
   }
 
@@ -158,7 +168,6 @@ void EybondCollector::loop() {
       if (read_len <= 0) {
         break;
       }
-      this->note_activity_(now);
       core_->on_tcp_data(buffer, static_cast<size_t>(read_len), now);
       available = tcp_.available();
     }
@@ -170,7 +179,11 @@ void EybondCollector::loop() {
     if (!this->read_byte(&byte)) {
       break;
     }
-    this->note_activity_(millis());
+    // Only inverter bytes answering a pending forward are real comms; idle-line
+    // noise on a floating/disconnected RX must not light the com LED.
+    if (core_->awaiting_uart_response()) {
+      this->note_activity_(millis());
+    }
     core_->on_uart_data(&byte, 1, millis());
   }
 
@@ -179,7 +192,7 @@ void EybondCollector::loop() {
   this->process_wifi_apply_(millis());
   this->process_reboot_(millis());
   this->poll_wifi_scan_(millis());
-  this->update_status_led_(millis());
+  this->update_leds_(millis());
 }
 
 bool EybondCollector::query_param(uint8_t parameter, std::string *out) {
@@ -668,7 +681,6 @@ void EybondCollector::tcp_connect(const std::string &host, uint16_t port) {
 
 void EybondCollector::tcp_send(const uint8_t *data, size_t len) {
   if (tcp_up_) {
-    this->note_activity_(millis());
     tcp_.write(data, len);
   }
 }
@@ -698,45 +710,77 @@ void EybondCollector::uart_send(const uint8_t *data, size_t len) {
 }
 
 void EybondCollector::note_activity_(uint32_t now) {
-  status_led_activity_until_ms_ = now + 90;
+  // Armed only by inverter UART traffic (forward TX + inverter reply), never by
+  // HA<->bridge TCP chatter, so the com indicator means real inverter comms.
+  last_activity_ms_ = now;
 }
 
-void EybondCollector::update_status_led_(uint32_t now) {
-  if (status_led_pin_ == nullptr) {
+// Two logical indicators, like the factory collector's STATUS and COM LEDs:
+//   * STATUS = connection state: fast blink (no Wi-Fi), slow blink (Wi-Fi but no
+//     bridge), solid (bridge connected).
+//   * COM = inverter communication: flickers while data flows on the UART, dark
+//     when idle. It TOGGLES (capped at COM_FLICKER_MS) rather than holding lit, so
+//     heavy load reads as a fast flicker and never as a solid glow.
+// Two pins -> each drives its own LED. Only status_led_pin (single-LED dev boards)
+// -> the status LED also carries com: solid when connected+idle, flickering while
+// inverter data flows. Only com_led_pin -> a pure activity light.
+void EybondCollector::update_leds_(uint32_t now) {
+  const bool wifi_up = network::is_connected();
+  const bool linked = wifi_up && tcp_up_;
+  const bool active = linked && (now - last_activity_ms_) < COM_HOLD_MS;
+
+  const bool have_status = status_led_pin_ != nullptr;
+  const bool have_com = com_led_pin_ != nullptr;
+  if (!have_status && !have_com) {
     return;
   }
 
-  if (!network::is_connected()) {
-    // Wi-Fi is not connected yet: quick blink so the board is visibly alive.
-    if (now - status_led_last_toggle_ms_ >= 250) {
-      this->write_status_led_(!status_led_state_);
+  // COM flicker phase.
+  if (active) {
+    if (now - com_last_toggle_ms_ >= COM_FLICKER_MS) {
+      com_phase_ = !com_phase_;
+      com_last_toggle_ms_ = now;
+    }
+  } else {
+    com_phase_ = false;
+  }
+  if (have_com) {
+    this->write_led_(com_led_pin_, &com_led_state_, com_phase_);
+  }
+
+  if (!have_status) {
+    return;
+  }
+
+  // STATUS LED (also carries com when it is the only LED).
+  bool target;
+  if (!wifi_up) {
+    if (now - status_led_last_toggle_ms_ >= STATUS_FAST_BLINK_MS) {
+      status_led_phase_ = !status_led_phase_;
       status_led_last_toggle_ms_ = now;
     }
-    return;
-  }
-
-  if (!tcp_up_) {
-    // Wi-Fi is up, but EyeBond Local is not connected yet: slow blink.
-    if (now - status_led_last_toggle_ms_ >= 1000) {
-      this->write_status_led_(!status_led_state_);
+    target = status_led_phase_;
+  } else if (!linked) {
+    if (now - status_led_last_toggle_ms_ >= STATUS_SLOW_BLINK_MS) {
+      status_led_phase_ = !status_led_phase_;
       status_led_last_toggle_ms_ = now;
     }
-    return;
+    target = status_led_phase_;
+  } else if (have_com) {
+    target = true;  // dedicated com LED exists -> status LED is a pure link light
+  } else {
+    target = active ? com_phase_ : true;  // single LED: solid when idle, flicker on traffic
+    status_led_phase_ = target;
   }
-
-  // Connected: a combined RX+TX activity light — lit while data is flowing on
-  // either the network (TCP) or the inverter (UART) side, dark when idle. The
-  // activity window is (re)armed by note_activity_() on every send/receive, so a
-  // single packet gives a ~90 ms flash and a burst holds the LED on.
-  this->write_status_led_(static_cast<int32_t>(status_led_activity_until_ms_ - now) > 0);
+  this->write_led_(status_led_pin_, &status_led_state_, target);
 }
 
-void EybondCollector::write_status_led_(bool on) {
-  if (status_led_pin_ == nullptr || status_led_state_ == on) {
+void EybondCollector::write_led_(GPIOPin *pin, bool *state, bool on) {
+  if (pin == nullptr || *state == on) {
     return;
   }
-  status_led_pin_->digital_write(on);
-  status_led_state_ = on;
+  pin->digital_write(on);
+  *state = on;
 }
 
 std::string EybondCollector::wifi_rssi() {

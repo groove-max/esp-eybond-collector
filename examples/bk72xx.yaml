@@ -52,6 +52,8 @@ eybond_collector:
   id: bridge
   uart_id: inverter_uart
   # flow_control_pin: GPIO12   # MAX485 DE/RE for RS485 inverters
+  # status_led_pin: GPIO8      # optional status LED (connection state); pick a free pin on your board
+  # com_led_pin: GPIO9         # optional separate LED for inverter-comms activity (see docs/FLASHING.md)
 
 # Runtime UART reconfiguration is not supported on LibreTiny/BK72xx.
 # Change baud_rate above and reflash when switching inverter families.

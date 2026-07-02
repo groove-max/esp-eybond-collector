@@ -9,7 +9,7 @@ namespace eybond {
 
 // Bridge firmware version, embedded in the FC=2 param-6 hardware_version marker
 // ("esp-collector/<version>/<platform>") the integration keys the bridge on.
-constexpr const char *BRIDGE_VERSION = "0.1.6";
+constexpr const char *BRIDGE_VERSION = "0.1.7";
 
 struct CollectorProfile {
   std::string pn;  // set at startup (config override or synthesized from MAC)

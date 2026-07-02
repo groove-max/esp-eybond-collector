@@ -71,6 +71,7 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   void set_collector_addr(uint8_t addr) { core_config_.collector_addr = addr; }
   void set_flow_control_pin(GPIOPin *pin) { flow_control_pin_ = pin; }
   void set_status_led_pin(GPIOPin *pin) { status_led_pin_ = pin; }
+  void set_com_led_pin(GPIOPin *pin) { com_led_pin_ = pin; }
   void set_ble_provisioning(bool enabled) { ble_enabled_ = enabled; }
 
   // Runtime inverter-UART re-baud (select entity, AT+UART=, FC=3 param 34).
@@ -104,8 +105,8 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   void poll_wifi_scan_(uint32_t now);
   void configure_fallback_ap_(const std::string &pn);
   void note_activity_(uint32_t now);
-  void update_status_led_(uint32_t now);
-  void write_status_led_(bool on);
+  void update_leds_(uint32_t now);
+  void write_led_(GPIOPin *pin, bool *state, bool on);
   std::string uart_settings_string_() const;
   void restore_persisted_baud_rate_();
   void persist_baud_rate_(uint32_t baud);
@@ -143,8 +144,16 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   GPIOPin *flow_control_pin_{nullptr};
   GPIOPin *status_led_pin_{nullptr};
   bool status_led_state_{true};
-  uint32_t status_led_activity_until_ms_{0};
+  bool status_led_phase_{false};
   uint32_t status_led_last_toggle_ms_{0};
+
+  // Communication (com) LED: its own pin, or overlaid on the status LED when no
+  // com pin is set (single-LED dev boards). Flickers on inverter UART traffic.
+  GPIOPin *com_led_pin_{nullptr};
+  bool com_led_state_{true};
+  bool com_phase_{false};
+  uint32_t com_last_toggle_ms_{0};
+  uint32_t last_activity_ms_{0};
   std::string pn_override_;
   uint16_t udp_port_{58899};
   std::string static_server_host_;

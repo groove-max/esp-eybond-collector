@@ -103,7 +103,7 @@ Open the YAML and check:
 - `board:` matches your ESP board;
 - `tx_pin` and `rx_pin` match your wiring;
 - `flow_control_pin` is set when you use a classic RS485 module with DE/RE;
-- `status_led_pin` matches the board's built-in LED if you want status indication;
+- `status_led_pin` / `com_led_pin` drive the status and communication LEDs (see below);
 - `baud_rate` matches the inverter family.
 
 The ready-made browser firmware starts at `9600`. Typical baud rates:
@@ -204,24 +204,49 @@ On BK72xx / LibreTiny, runtime baud-rate switching is not available. Change `bau
 
 The ESP32 BLE profile is YAML-only in the first release. BLE + Wi-Fi is large, so to fit the default 4 MB app partition the profile omits `api:`, `captive_portal:` and the baud `select:` (BLE provisioning replaces the captive portal; the EyeBond Local integration uses its own protocol, not the ESPHome API). OTA still works. To add those back, use a board with more flash and a larger app-partition layout — otherwise the image silently overflows and the board boot-loops.
 
-## Status LED
+## Status and COM LEDs
 
-The release presets use the board's built-in LED:
+The bridge drives two logical indicators, like a factory collector's **STATUS** and
+**COM** LEDs — configured with `status_led_pin` and `com_led_pin` (either or both):
+
+- **STATUS** — connection state.
+- **COM** — inverter communication activity.
+
+The release presets wire a single built-in LED to `status_led_pin`:
 
 - Wemos D1 mini: GPIO2 / D4, inverted.
 - ESP-WROOM-32 DevKit: GPIO2.
 
 On ESP32, GPIO2 is a boot strapping pin. The built-in LED is fine on typical DevKit boards, but do not add external pull-up/down resistors or heavy loads to GPIO2.
 
-Indication:
+How the configured pins map to behaviour:
 
-| LED | State |
+| Configured pins | Behaviour |
+|---|---|
+| `status_led_pin` only (single-LED dev boards) | One LED shows **both**: the connection state, plus a com flicker overlaid whenever the inverter is talked to. |
+| `status_led_pin` + `com_led_pin` | STATUS and COM each drive their own LED. |
+| `com_led_pin` only | A pure activity light: dark when idle, flickers on inverter traffic. |
+
+STATUS indication:
+
+| STATUS LED | State |
 |---|---|
 | Fast blink | The board is not connected to Wi-Fi yet. |
 | Slow blink | Wi-Fi is connected, but EyeBond Local has not connected to the bridge yet. |
-| Dark, flickers on traffic | The bridge is connected: the LED stays off when idle and flickers in time with data moving between Home Assistant, the bridge, and the inverter. |
+| Solid on | The bridge is connected and idle. |
 
-If your board uses another LED pin or inverted logic, adjust `status_led_pin` in YAML.
+COM indication:
+
+| COM LED | State |
+|---|---|
+| Dark | No inverter traffic. |
+| Flicker | Data is flowing to/from the inverter (a forward and its reply). The LED *toggles* rather than holding lit, so heavy load reads as a fast flicker and never a solid glow. |
+
+In the single-LED combined mode, the "solid on" connected state is briefly interrupted
+by the com flicker whenever the inverter is polled.
+
+Each pin takes the full pin schema, so per-pin inversion is available, e.g.
+`status_led_pin: { number: GPIO2, inverted: true }`.
 
 ## Troubleshooting
 

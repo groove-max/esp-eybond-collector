@@ -29,7 +29,7 @@ The bridge stays on your LAN and does not connect to SmartESS cloud.
 - ESPHome features: OTA updates, logs, captive portal, and optional ESPHome entities.
 - Wi-Fi management from EyeBond Local where supported.
 - Optional runtime UART baud-rate select on ESP8266/ESP32 when you add the board through the ESPHome integration.
-- Built-in status LED indication on the release presets.
+- Built-in status LED indication on the release presets, with an optional `com_led_pin` for a separate inverter-communication LED.
 
 What you do **not** get:
 
@@ -151,6 +151,8 @@ Release presets use one pinout for all physical links:
 | ESP32 DevKit | GPIO17 | GPIO16 | GPIO4 | GPIO2 | `9600` |
 
 For TTL and RS232, use TX/RX/GND and leave the DE/RE pin unconnected. For RS485, connect DE and RE together to the listed DE/RE pin.
+
+The onboard LED in the table is `status_led_pin`; on a single LED it shows both connection state and an inverter-communication flicker. Add an optional `com_led_pin` for a dedicated communication LED — see [Status and COM LEDs](docs/FLASHING.md#status-and-com-leds).
 
 ---
 

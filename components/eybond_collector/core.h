@@ -138,6 +138,11 @@ class CollectorCore {
   bool connected() const { return link_state_ == LinkState::CONNECTED; }
   const std::string &server_host() const { return server_host_; }
   uint16_t server_port() const { return server_port_; }
+  // True only while a forwarded request is awaiting its inverter reply, so a "com"
+  // activity LED lights for real transactions and not idle-line noise on a floating
+  // or disconnected UART RX (which a connected bridge would otherwise show as constant
+  // flicker whenever the inverter is unwired or powered off).
+  bool awaiting_uart_response() const { return bridge_state_ == BridgeState::WAITING_RESPONSE; }
 
  private:
   enum class LinkState : uint8_t { DISCONNECTED, CONNECTING, CONNECTED };

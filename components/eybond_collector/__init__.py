@@ -31,6 +31,7 @@ CONF_DEVCODE = "devcode"
 CONF_COLLECTOR_ADDR = "collector_addr"
 CONF_FLOW_CONTROL_PIN = "flow_control_pin"
 CONF_STATUS_LED_PIN = "status_led_pin"
+CONF_COM_LED_PIN = "com_led_pin"
 CONF_BLE_PROVISIONING = "ble_provisioning"
 
 eybond_collector_ns = cg.esphome_ns.namespace("eybond_collector")
@@ -65,6 +66,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLLECTOR_ADDR, default=0x01): cv.hex_uint8_t,
             cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_STATUS_LED_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_COM_LED_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BLE_PROVISIONING, default=False): cv.boolean,
         }
     )
@@ -118,6 +120,9 @@ async def to_code(config):
     if CONF_STATUS_LED_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_STATUS_LED_PIN])
         cg.add(var.set_status_led_pin(pin))
+    if CONF_COM_LED_PIN in config:
+        pin = await cg.gpio_pin_expression(config[CONF_COM_LED_PIN])
+        cg.add(var.set_com_led_pin(pin))
     if config[CONF_BLE_PROVISIONING]:
         cg.add_define("USE_EYBOND_BLE")
         cg.add(var.set_ble_provisioning(True))
