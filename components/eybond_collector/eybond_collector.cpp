@@ -189,6 +189,7 @@ void EybondCollector::loop() {
 
   core_->loop(millis());
   this->process_pending_connect_();
+  this->process_endpoint_apply_(millis());
   this->process_wifi_apply_(millis());
   this->process_reboot_(millis());
   this->poll_wifi_scan_(millis());
@@ -272,7 +273,14 @@ uint8_t EybondCollector::set_param(uint8_t parameter, const std::string &value) 
       std::string host;
       uint16_t port = 0;
       if (eybond::parse_server_endpoint(pending_endpoint_, &host, &port) && core_ != nullptr) {
-        core_->set_server_endpoint(host, port, millis());  // persists via callback
+        // Defer the switch: applying the endpoint closes the current TCP
+        // session, and doing that synchronously here would drop the socket
+        // before the FC=3 ack for THIS request is flushed to HA (mirrors the
+        // deferred Wi-Fi apply below).
+        staged_endpoint_host_ = host;
+        staged_endpoint_port_ = port;
+        endpoint_apply_requested_ = true;
+        endpoint_apply_at_ms_ = millis() + 750;
         committed = true;
       }
       pending_endpoint_.clear();
@@ -427,6 +435,20 @@ void EybondCollector::persist_baud_rate_(uint32_t baud) {
     return;
   }
   global_preferences->sync();
+}
+
+void EybondCollector::process_endpoint_apply_(uint32_t now) {
+  if (!endpoint_apply_requested_ || static_cast<int32_t>(now - endpoint_apply_at_ms_) < 0) {
+    return;
+  }
+  endpoint_apply_requested_ = false;
+  if (core_ != nullptr) {
+    ESP_LOGI(TAG, "Applying staged server endpoint %s:%u", staged_endpoint_host_.c_str(),
+             static_cast<unsigned>(staged_endpoint_port_));
+    core_->set_server_endpoint(staged_endpoint_host_, staged_endpoint_port_, now);  // persists via callback
+  }
+  staged_endpoint_host_.clear();
+  staged_endpoint_port_ = 0;
 }
 
 void EybondCollector::process_wifi_apply_(uint32_t now) {

@@ -99,6 +99,7 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   void log(const char *message) override;
 
   void process_pending_connect_();
+  void process_endpoint_apply_(uint32_t now);
   void process_wifi_apply_(uint32_t now);
   void request_reboot_(uint32_t now);
   void process_reboot_(uint32_t now);
@@ -166,6 +167,10 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   // the STA reconnects or the board reboots.
   std::string pending_wifi_ssid_;
   std::string pending_wifi_password_;
+  bool endpoint_apply_requested_{false};
+  uint32_t endpoint_apply_at_ms_{0};
+  std::string staged_endpoint_host_;
+  uint16_t staged_endpoint_port_{0};
   bool wifi_apply_requested_{false};
   uint32_t wifi_apply_at_ms_{0};
 
