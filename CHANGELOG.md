@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.8] - 2026-07-04
+
+### Fixed
+- **Changing the server endpoint over FC=3 no longer drops the acknowledgement.**
+  A staged endpoint (param 21) committed with param 29 used to be applied
+  synchronously, closing the TCP session before the FC=3 acknowledgement for that
+  very request was flushed — Home Assistant saw the write as failed even though it
+  had worked. The apply is now deferred (~750 ms) until the acknowledgement is on
+  the wire, mirroring the existing deferred Wi-Fi apply.
+- **A retried commit during the deferred-apply window no longer reboots the bridge.**
+  Param 29 clears the staged values immediately but applies them a moment later; a
+  retry arriving inside that window found nothing staged and was misread as a bare
+  restart request. An in-flight deferred apply now acknowledges the retry as
+  success instead.
+
+### Changed
+- `BRIDGE_VERSION` bumped to `0.1.8`.
+
 ## [0.1.7] - 2026-07-02
 
 ### Added
