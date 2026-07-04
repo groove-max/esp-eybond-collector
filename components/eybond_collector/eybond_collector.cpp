@@ -299,6 +299,17 @@ uint8_t EybondCollector::set_param(uint8_t parameter, const std::string &value) 
     if (had_staged) {
       return 1;  // staged but invalid/incomplete; do not reinterpret as restart
     }
+    bool apply_in_flight = endpoint_apply_requested_;
+#ifdef USE_WIFI
+    apply_in_flight = apply_in_flight || wifi_apply_requested_;
+#endif
+    if (apply_in_flight) {
+      // A commit is already deferred (param 21/41 + 29 arrived moments ago and
+      // the apply window has not elapsed). A retried param 29 in this window
+      // acknowledges that commit; treating it as a bare restart request would
+      // turn the endpoint switch into an unwanted reboot.
+      return 0;
+    }
     this->request_reboot_(millis());
     return 0;
   }
