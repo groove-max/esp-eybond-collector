@@ -13,7 +13,7 @@ import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome import pins
 from esphome.components import uart
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_RX_PIN, CONF_TX_PIN, CONF_UART_ID
 from esphome.core import CORE
 
 CODEOWNERS = ["@groove-max"]
@@ -33,6 +33,7 @@ CONF_FLOW_CONTROL_PIN = "flow_control_pin"
 CONF_STATUS_LED_PIN = "status_led_pin"
 CONF_COM_LED_PIN = "com_led_pin"
 CONF_BLE_PROVISIONING = "ble_provisioning"
+CONF_WEB_CONFIGURATION = "web_configuration"
 
 eybond_collector_ns = cg.esphome_ns.namespace("eybond_collector")
 EybondCollector = eybond_collector_ns.class_("EybondCollector", cg.Component, uart.UARTDevice)
@@ -68,6 +69,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_STATUS_LED_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_COM_LED_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BLE_PROVISIONING, default=False): cv.boolean,
+            cv.Optional(CONF_WEB_CONFIGURATION, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -77,20 +79,24 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config):
-    """ble_provisioning needs ESP32 BLE and the esp32_ble_server GATT server."""
-    if not config.get(CONF_BLE_PROVISIONING):
-        return config
-    if not CORE.is_esp32:
-        raise cv.Invalid(
-            "ble_provisioning is only supported on ESP32 (it needs on-chip BLE); "
-            "ESP8266 and BK72xx/LibreTiny have no usable BLE server."
-        )
     full_config = fv.full_config.get()
-    if "esp32_ble_server" not in full_config:
+    if config.get(CONF_BLE_PROVISIONING):
+        if not CORE.is_esp32:
+            raise cv.Invalid(
+                "ble_provisioning is only supported on ESP32 (it needs on-chip BLE); "
+                "ESP8266 and BK72xx/LibreTiny have no usable BLE server."
+            )
+        if "esp32_ble_server" not in full_config:
+            raise cv.Invalid(
+                "ble_provisioning requires an 'esp32_ble_server:' entry in your YAML — "
+                "it provides the BLE GATT server the bridge attaches to. Add an empty "
+                "'esp32_ble_server:' block (see examples/esp32-ble.yaml)."
+            )
+    if config.get(CONF_WEB_CONFIGURATION) and "captive_portal" not in full_config:
         raise cv.Invalid(
-            "ble_provisioning requires an 'esp32_ble_server:' entry in your YAML — "
-            "it provides the BLE GATT server the bridge attaches to. Add an empty "
-            "'esp32_ble_server:' block (see examples/esp32-ble.yaml)."
+            "web_configuration requires a 'captive_portal:' entry; the settings "
+            "page reuses its stock Wi-Fi setup handlers on both the normal LAN "
+            "and the fallback access point"
         )
     return config
 
@@ -102,6 +108,21 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
+    # Keep the generated UART component authoritative. These values are only
+    # metadata for the local configuration page; arbitrary pin remapping is not
+    # universally reloadable by ESPHome's platform UART implementations.
+    uart_tx_pin = -1
+    uart_rx_pin = -1
+    for uart_config in CORE.config.get("uart", []):
+        if uart_config.get(CONF_ID) != config[CONF_UART_ID]:
+            continue
+        if CONF_TX_PIN in uart_config:
+            uart_tx_pin = uart_config[CONF_TX_PIN][CONF_NUMBER]
+        if CONF_RX_PIN in uart_config:
+            uart_rx_pin = uart_config[CONF_RX_PIN][CONF_NUMBER]
+        break
+    cg.add(var.set_uart_pin_numbers(uart_tx_pin, uart_rx_pin))
 
     if CONF_PN in config:
         cg.add(var.set_pn(config[CONF_PN]))
@@ -126,3 +147,6 @@ async def to_code(config):
     if config[CONF_BLE_PROVISIONING]:
         cg.add_define("USE_EYBOND_BLE")
         cg.add(var.set_ble_provisioning(True))
+    if config[CONF_WEB_CONFIGURATION]:
+        cg.add_define("USE_EYBOND_WEB_CONFIG")
+        cg.add(var.set_web_configuration(True))

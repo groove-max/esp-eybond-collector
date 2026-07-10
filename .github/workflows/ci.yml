@@ -20,28 +20,11 @@ jobs:
       - name: Host tests
         run: make -C host_tests test
       - name: Validate YAML and docs links
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          import yaml
-
-          class Loader(yaml.SafeLoader):
-              pass
-          Loader.add_constructor("!secret", lambda loader, node: loader.construct_scalar(node))
-          for path in sorted(Path("examples").glob("*.yaml")):
-              if path.name == "secrets.yaml":
-                  raise SystemExit("examples/secrets.yaml must not be committed")
-              yaml.load(path.read_text(), Loader=Loader)
-
-          link_re = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
-          for path in [Path("README.md"), Path("README.uk.md"), *Path("docs").glob("*.md")]:
-              for match in link_re.finditer(path.read_text()):
-                  target = match.group(1).split("#", 1)[0]
-                  if not target or "://" in target:
-                      continue
-                  if not (path.parent / target).exists():
-                      raise SystemExit(f"{path}: broken link {target}")
-          PY
-      - name: Compile release presets
-        run: python tools/build_web_release.py --compile --local-source --version ci
+        run: python tools/validate_repo.py
+      - name: Compile release presets and YAML-only profiles
+        run: >-
+          python tools/build_web_release.py
+          --compile
+          --compile-yaml-profiles
+          --local-source
+          --version ci

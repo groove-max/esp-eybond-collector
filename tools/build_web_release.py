@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -78,17 +79,65 @@ PRESETS: tuple[Preset, ...] = (
     ),
 )
 
+PROJECT_NAME = "groove-max.eybond-collector"
+DASHBOARD_IMPORT_SLUGS = ("esp8266-d1-mini", "esp32-devkit", "bk72xx")
+YAML_ONLY_PROFILES = ("examples/bk72xx.yaml", "examples/esp32-ble.yaml")
 
-def _write_ci_config(preset: Preset, base: Path) -> Path:
-    source = (REPO / preset.config).read_text()
+
+def _bridge_version() -> str:
+    profile = (REPO / "components/eybond_collector/profile.h").read_text()
+    match = re.search(r'BRIDGE_VERSION\s*=\s*"([^"]+)"', profile)
+    if match is None:
+        raise RuntimeError("Could not read BRIDGE_VERSION from profile.h")
+    return match.group(1)
+
+
+def _validate_dashboard_import_metadata() -> None:
+    version = _bridge_version()
+    for slug in DASHBOARD_IMPORT_SLUGS:
+        paths = [REPO / "examples" / f"{slug}.yaml", REPO / "packages" / f"{slug}.yaml"]
+        expected_url = (
+            f"github://groove-max/esp-eybond-collector/packages/{slug}.yaml@main"
+        )
+        for path in paths:
+            source = path.read_text()
+            if f"name: {PROJECT_NAME}" not in source:
+                raise RuntimeError(f"{path}: missing ESPHome project name {PROJECT_NAME}")
+            if f'version: "{version}"' not in source:
+                raise RuntimeError(
+                    f"{path}: project version must match BRIDGE_VERSION {version}"
+                )
+            if f"package_import_url: {expected_url}" not in source:
+                raise RuntimeError(f"{path}: unexpected dashboard import package URL")
+
+
+def _validate_requested_version(version: str) -> None:
+    if version in {"ci", "dev"}:
+        return
+    normalized = version.removeprefix("v")
+    bridge_version = _bridge_version()
+    if normalized != bridge_version:
+        raise RuntimeError(
+            f"requested release version {version!r} does not match "
+            f"BRIDGE_VERSION {bridge_version!r}"
+        )
+
+
+def _write_local_source_config(
+    config_path: str, base: Path, *, build_name: str | None = None
+) -> Path:
+    source = (REPO / config_path).read_text()
     if GITHUB_SOURCE not in source:
-        raise RuntimeError(f"{preset.config}: expected public GitHub external_components block")
-    source = source.replace("  name: eybond-bridge\n", f"  name: {preset.build_name}\n", 1)
+        raise RuntimeError(
+            f"{config_path}: expected public GitHub external_components block"
+        )
+    if build_name is not None:
+        source = source.replace("  name: eybond-bridge\n", f"  name: {build_name}\n", 1)
     base.mkdir(parents=True, exist_ok=True)
     (base / "secrets.yaml").write_text(
         'wifi_ssid: "ExampleNetwork"\nwifi_password: "ExamplePassword"\n'
     )
-    config = base / f"{preset.slug}.yaml"
+    config = base / Path(config_path).name
     config.write_text(source.replace(GITHUB_SOURCE, LOCAL_SOURCE))
     return config
 
@@ -99,7 +148,13 @@ def _run(cmd: list[str], cwd: Path) -> None:
 
 def _compile(preset: Preset, *, esphome: str, local_source: bool) -> Path:
     if local_source:
-        config = _write_ci_config(preset, REPO / ".local" / "web_release_configs")
+        # Keep generated release configs isolated from maintainer bench configs.
+        # In particular, never overwrite a bench secrets.yaml with CI placeholders.
+        config = _write_local_source_config(
+            preset.config,
+            REPO / ".local" / "web_release_build",
+            build_name=preset.build_name,
+        )
     else:
         config = REPO / preset.config
     _run([esphome, "compile", str(config)], cwd=REPO)
@@ -109,6 +164,15 @@ def _compile(preset: Preset, *, esphome: str, local_source: bool) -> Path:
     if not factory.exists():
         raise FileNotFoundError(factory)
     return factory
+
+
+def _compile_yaml_only_profiles(*, esphome: str, local_source: bool) -> None:
+    if not local_source:
+        raise RuntimeError("YAML-only profile checks require --local-source")
+    base = REPO / ".local" / "yaml_profile_build"
+    for config_path in YAML_ONLY_PROFILES:
+        config = _write_local_source_config(config_path, base)
+        _run([esphome, "compile", str(config)], cwd=REPO)
 
 
 def _manifest(preset: Preset, version: str) -> dict[str, object]:
@@ -275,8 +339,12 @@ def main() -> int:
     parser.add_argument("--version", default="dev")
     parser.add_argument("--esphome", default="esphome")
     parser.add_argument("--compile", action="store_true")
+    parser.add_argument("--compile-yaml-profiles", action="store_true")
     parser.add_argument("--local-source", action="store_true")
     args = parser.parse_args()
+
+    _validate_requested_version(args.version)
+    _validate_dashboard_import_metadata()
 
     output = REPO / args.output
     web = output / "web"
@@ -289,6 +357,11 @@ def main() -> int:
             shutil.copy2(factory, firmware / f"{preset.slug}.factory.bin")
         manifest_path = web / f"manifest-{preset.slug}.json"
         manifest_path.write_text(json.dumps(_manifest(preset, args.version), indent=2) + "\n")
+
+    if args.compile_yaml_profiles:
+        _compile_yaml_only_profiles(
+            esphome=args.esphome, local_source=args.local_source
+        )
 
     _write_web(web, args.version)
     print(f"web_release:{web}")

@@ -1,0 +1,59 @@
+substitutions:
+  name: eybond-collector
+  friendly_name: EyeBond Collector
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: true
+  project:
+    name: groove-max.eybond-collector
+    version: "0.1.10"
+
+esp8266:
+  board: d1_mini
+
+logger:
+  baud_rate: 0
+
+wifi:
+  ap: {}
+
+captive_portal:
+
+api:
+
+ota:
+  - platform: esphome
+
+dashboard_import:
+  package_import_url: github://groove-max/esp-eybond-collector/packages/esp8266-d1-mini.yaml@main
+  import_full_config: false
+
+external_components:
+  - source: github://groove-max/esp-eybond-collector
+    components: [eybond_collector]
+
+uart:
+  id: inverter_uart
+  tx_pin: GPIO13
+  rx_pin: GPIO12
+  baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+eybond_collector:
+  id: bridge
+  uart_id: inverter_uart
+  web_configuration: true
+  flow_control_pin: GPIO14
+  status_led_pin:
+    number: GPIO2
+    inverted: true
+
+select:
+  - platform: eybond_collector
+    eybond_collector_id: bridge
+    name: Inverter UART baud rate
+    restore_value: true

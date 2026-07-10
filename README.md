@@ -176,13 +176,47 @@ For the custom ESP bridge, EyeBond Local also exposes **Change inverter UART spe
 
 ---
 
-## Wi-Fi changes
+## Local settings page
 
-The bridge can use normal ESPHome Wi-Fi setup and captive portal behavior. When it opens the setup portal, its temporary Wi-Fi network is named like its virtual collector PN, for example `V00000...`.
+Once the collector is connected to your network, open
+`http://<collector-ip>/`. If it cannot join Wi-Fi, connect to its temporary
+`V00000...` network and open `http://192.168.4.1/` instead. Both addresses show
+the same settings page.
+
+From this page you can:
+
+- choose a Wi-Fi network and enter its password;
+- set the Home Assistant server address and port;
+- view or change the collector PN;
+- check the UART pins and change the inverter UART settings;
+- see whether data is moving over UART / RS485;
+- install a firmware update over the network.
+
+Each section has its own **Save** button. Before changing the PN, server address
+or UART settings, the page explains how that change can affect Home Assistant or
+the inverter connection. Nearby Wi-Fi networks show signal strength and security;
+the network currently configured on the collector is highlighted.
+
+UART settings can be changed directly on ESP8266 and ESP32. They are stored in
+flash and remain in use after a restart. On BK72xx they are shown for reference;
+to change them, edit the YAML and flash the board again. The page is available in
+English, Ukrainian and Russian, with a light or dark theme.
+
+For a custom YAML, enable the page with `web_configuration: true` under
+`eybond_collector:` and include `captive_portal:`.
+
+### Add a prebuilt collector to ESPHome Dashboard
+
+You do not need a pairing key. If ESPHome Device Builder is on the same network
+and can receive mDNS traffic, it should show the collector as a discovered
+device. Click **Adopt** and ESPHome will create a local YAML using the package for
+the matching board. Review the board and pin assignment before installing an
+update from that YAML.
 
 EyeBond Local can also change collector Wi-Fi settings for the bridge. If the new credentials are wrong, the bridge should fall back to its setup portal instead of becoming permanently unreachable.
 
-The nearby-network list can show only the current network on the first read. Refresh after a few seconds to see the full scan result.
+The first Wi-Fi scan may show only the current network. Refresh the page after a
+few seconds if the full list has not appeared yet.
 
 ---
 

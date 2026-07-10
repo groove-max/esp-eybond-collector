@@ -28,14 +28,34 @@ jobs:
         run: python -m pip install "esphome==${ESPHOME_VERSION}" pyyaml
       - name: Host tests
         run: make -C host_tests test
+      - name: Validate YAML and docs links
+        run: python tools/validate_repo.py
       - name: Build web release
-        run: python tools/build_web_release.py --compile --local-source --version "${GITHUB_REF_NAME}"
+        run: >-
+          python tools/build_web_release.py
+          --compile
+          --compile-yaml-profiles
+          --local-source
+          --version "${GITHUB_REF_NAME}"
+      - name: Generate checksums
+        run: |
+          cd dist/web-release/web
+          for file in firmware/*.bin manifest-*.json; do
+            sha256sum "$file" | sed 's#  firmware/#  #'
+          done > ../SHA256SUMS
+      - name: Render release notes
+        run: >-
+          python tools/render_release_notes.py
+          "${GITHUB_REF_NAME}"
+          --output dist/web-release/RELEASE_NOTES.md
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v3
         with:
+          body_path: dist/web-release/RELEASE_NOTES.md
           files: |
             dist/web-release/web/firmware/*.bin
             dist/web-release/web/manifest-*.json
+            dist/web-release/SHA256SUMS
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:

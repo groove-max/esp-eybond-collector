@@ -9,6 +9,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/uart/uart.h"
 
@@ -29,6 +30,11 @@
 #include "esphome/components/esp32_ble_server/ble_characteristic.h"
 #endif
 
+#ifdef USE_EYBOND_WEB_CONFIG
+#include "esphome/components/captive_portal/captive_portal.h"
+#include "esphome/components/web_server_base/web_server_base.h"
+#endif
+
 namespace esphome {
 namespace eybond_collector {
 
@@ -40,8 +46,38 @@ struct PersistedEndpoint {
   uint16_t port;
 } PACKED;
 
+struct PersistedUartSettings {
+  uint32_t baud;
+  uint8_t version;
+  uint8_t data_bits;
+  uint8_t stop_bits;
+  uint8_t parity;
+} PACKED;
+
+struct PersistedCollectorPn {
+  char pn[19];
+  uint8_t version;
+  uint8_t use_default;
+} PACKED;
+
+struct UartDiagnosticsSnapshot {
+  uint32_t tx_bytes;
+  uint32_t rx_bytes;
+  uint32_t rx_response_bytes;
+  uint32_t rx_ignored_bytes;
+  uint32_t tx_operations;
+  bool has_tx_activity;
+  bool has_rx_activity;
+  uint32_t last_tx_age_ms;
+  uint32_t last_rx_age_ms;
+};
+
 static const uint32_t ENDPOINT_PREF_HASH = 0xE7B0'DC01;
 static const uint32_t BAUD_PREF_HASH = 0xE7B0'DC02;
+static const uint32_t UART_PREF_HASH = 0xE7B0'DC03;
+static const uint32_t PN_PREF_HASH = 0xE7B0'DC04;
+static const uint8_t UART_PREF_VERSION = 1;
+static const uint8_t PN_PREF_VERSION = 1;
 
 class EybondCollector : public Component, public uart::UARTDevice, private eybond::CollectorCore::Actions
 #ifdef USE_EYBOND_BLE
@@ -73,6 +109,11 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   void set_status_led_pin(GPIOPin *pin) { status_led_pin_ = pin; }
   void set_com_led_pin(GPIOPin *pin) { com_led_pin_ = pin; }
   void set_ble_provisioning(bool enabled) { ble_enabled_ = enabled; }
+  void set_web_configuration(bool enabled) { web_configuration_enabled_ = enabled; }
+  void set_uart_pin_numbers(int16_t tx_pin, int16_t rx_pin) {
+    uart_tx_pin_number_ = tx_pin;
+    uart_rx_pin_number_ = rx_pin;
+  }
 
   // Runtime inverter-UART re-baud (select entity, AT+UART=, FC=3 param 34).
   // Returns false when the rate is rejected.
@@ -81,6 +122,30 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   bool reconfigure_uart_(uint32_t baud, uint8_t data_bits, uint8_t stop_bits,
                          uart::UARTParityOptions parity);
   uint32_t current_baud_rate() const;
+  bool runtime_uart_configuration_supported() const;
+  std::string current_uart_settings() const { return this->uart_settings_string_(); }
+  uint8_t current_uart_data_bits() const { return this->parent_->get_data_bits(); }
+  uint8_t current_uart_stop_bits() const { return this->parent_->get_stop_bits(); }
+  const char *current_uart_parity() const;
+  const std::string &current_collector_pn() const { return collector_pn_; }
+  const std::string &default_collector_pn() const { return default_collector_pn_; }
+  bool using_default_collector_pn() const { return using_default_pn_; }
+  int16_t current_uart_tx_pin() const { return uart_tx_pin_number_; }
+  int16_t current_uart_rx_pin() const { return uart_rx_pin_number_; }
+  std::string current_direction_pin() const;
+  std::string current_status_led_pin() const;
+  std::string current_com_led_pin() const;
+  std::string current_server_host() const;
+  uint16_t current_server_port() const;
+  bool collector_link_connected() const { return core_ != nullptr && core_->connected(); }
+  bool uart_response_pending() const { return core_ != nullptr && core_->awaiting_uart_response(); }
+  UartDiagnosticsSnapshot uart_diagnostics_snapshot(uint32_t now);
+  bool stage_web_collector_identity(bool use_default_pn, const std::string &pn, std::string *error);
+  bool stage_web_endpoint(const std::string &host, uint16_t port, std::string *error);
+  bool stage_web_uart(const std::string &uart, std::string *error);
+  bool stage_web_settings(const std::string &host, uint16_t port, const std::string &uart,
+                          bool pn_config_present, bool use_default_pn, const std::string &pn,
+                          std::string *error);
   void set_baud_listener(std::function<void(uint32_t)> listener) { baud_listener_ = std::move(listener); }
 
  protected:
@@ -100,6 +165,8 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
 
   void process_pending_connect_();
   void process_endpoint_apply_(uint32_t now);
+  void process_web_uart_apply_();
+  void process_pn_apply_(uint32_t now);
   void process_wifi_apply_(uint32_t now);
   void request_reboot_(uint32_t now);
   void process_reboot_(uint32_t now);
@@ -109,8 +176,10 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   void update_leds_(uint32_t now);
   void write_led_(GPIOPin *pin, bool *state, bool on);
   std::string uart_settings_string_() const;
-  void restore_persisted_baud_rate_();
-  void persist_baud_rate_(uint32_t baud);
+  void restore_persisted_uart_settings_();
+  void persist_uart_settings_();
+  void restore_persisted_collector_pn_();
+  bool persist_collector_pn_(bool use_default, const std::string &pn);
 
 #ifdef USE_EYBOND_BLE
   // eybond::BleProvisioning::Actions
@@ -155,7 +224,25 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   bool com_phase_{false};
   uint32_t com_last_toggle_ms_{0};
   uint32_t last_activity_ms_{0};
+  // Passive UART diagnostics. These counters never influence framing, timeout,
+  // routing or flow-control behavior; they only describe bytes observed at the
+  // physical inverter interface since boot.
+  Mutex uart_diagnostics_mutex_;
+  uint32_t uart_tx_bytes_{0};
+  uint32_t uart_rx_bytes_{0};
+  uint32_t uart_rx_response_bytes_{0};
+  uint32_t uart_rx_ignored_bytes_{0};
+  uint32_t uart_tx_operations_{0};
+  uint32_t last_uart_tx_ms_{0};
+  uint32_t last_uart_rx_ms_{0};
+  bool has_uart_tx_activity_{false};
+  bool has_uart_rx_activity_{false};
   std::string pn_override_;
+  std::string collector_pn_;
+  std::string default_collector_pn_;
+  bool using_default_pn_{true};
+  int16_t uart_tx_pin_number_{-1};
+  int16_t uart_rx_pin_number_{-1};
   uint16_t udp_port_{58899};
   std::string static_server_host_;
   uint16_t static_server_port_{8899};
@@ -186,13 +273,29 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
 
   // Notified after a successful runtime re-baud (keeps the select entity in sync).
   std::function<void(uint32_t)> baud_listener_;
+  // Legacy baud-only preference remains readable/writable for downgrade
+  // compatibility. New firmware stores the complete framing in uart_pref_.
   ESPPreferenceObject baud_pref_;
+  ESPPreferenceObject uart_pref_;
+  ESPPreferenceObject pn_pref_;
 
   // Server-endpoint write (FC=3 param 21 staged, committed by param 29) and its
   // NVS persistence.
   std::string pending_endpoint_;
   ESPPreferenceObject endpoint_pref_;
   bool suppress_endpoint_persist_{false};
+
+  // Local web configuration. HTTP callbacks merely validate and stage
+  // changes; the component loop applies UART/endpoint state and writes flash.
+  bool web_configuration_enabled_{false};
+  bool web_handler_registered_{false};
+  bool web_server_initialized_{false};
+  bool web_uart_apply_requested_{false};
+  std::string web_staged_uart_;
+  bool pn_apply_requested_{false};
+  uint32_t pn_apply_at_ms_{0};
+  bool web_staged_use_default_pn_{true};
+  std::string web_staged_pn_;
 
   // Cached scan results in structured form (the source for both the FC=2
   // param-49 string cache and the BLE AT+INTPARA49? list).

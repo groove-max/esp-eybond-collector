@@ -9,6 +9,10 @@
 
 esphome:
   name: eybond-bridge
+  name_add_mac_suffix: true
+  project:
+    name: groove-max.eybond-collector
+    version: "0.1.10"
 
 esp8266:
   board: d1_mini
@@ -30,6 +34,10 @@ captive_portal:
 ota:
   - platform: esphome
 
+dashboard_import:
+  package_import_url: github://groove-max/esp-eybond-collector/packages/esp8266-d1-mini.yaml@main
+  import_full_config: false
+
 external_components:
   - source: github://groove-max/esp-eybond-collector
     components: [eybond_collector]
@@ -46,6 +54,7 @@ uart:
 eybond_collector:
   id: bridge
   uart_id: inverter_uart
+  web_configuration: true
   flow_control_pin: GPIO14  # D5 -> RS485 DE+RE; leave unconnected for TTL/RS232
   status_led_pin:
     number: GPIO2           # D4 / built-in LED on Wemos D1 mini

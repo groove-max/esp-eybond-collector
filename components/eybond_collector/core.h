@@ -52,6 +52,8 @@ struct CoreConfig {
 // factory "IP,PORT,TCP" form (FC=2 param 21 / AT+CLDSRVHOST1) as well as
 // "IP,PORT" and "IP:PORT". Returns false on a malformed or out-of-range value.
 bool parse_server_endpoint(const std::string &value, std::string *host, uint16_t *port);
+bool valid_server_endpoint(const std::string &host, uint16_t port);
+bool valid_collector_pn(const std::string &value);
 
 enum class UartParity : uint8_t { NONE, EVEN, ODD };
 
@@ -65,7 +67,8 @@ struct UartSettings {
 // Parse an AT+UART value "baud,data,stop,parity" (e.g. "2400,8,1,NONE"). Baud
 // is required; data/stop/parity are optional and keep their defaults (8/1/NONE)
 // when absent. Parity accepts NONE/EVEN/ODD (or N/E/O), case-insensitive.
-// Returns false only when the baud field is missing or non-numeric.
+// Returns false when baud or framing values are malformed or outside the
+// platform-neutral UART ranges (5-8 data bits, 1-2 stop bits, N/E/O parity).
 bool parse_uart_settings(const std::string &value, UartSettings *out);
 
 class CollectorCore {

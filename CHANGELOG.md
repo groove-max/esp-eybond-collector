@@ -4,6 +4,54 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.10] - 2026-07-10
+
+### Added
+- **Unified local configuration page.** `/` now combines Wi-Fi provisioning,
+  Home Assistant endpoint settings, complete inverter UART framing and web OTA.
+  It is available on both the normal LAN address and `192.168.4.1` in setup mode.
+- **Complete persisted UART framing.** ESP8266 and ESP32 now persist data bits,
+  parity and stop bits together with baud rate. Existing baud-only preferences
+  migrate automatically. On BK72xx, UART settings remain build-time-only and can
+  be changed only by rebuilding and reflashing the firmware.
+- **Hardware identity overview.** The page shows the compiled TX/RX and RS485
+  direction/status/communication LED pins, collector PN and ESPHome hostname.
+  Build-time fields remain read-only until a platform-safe boot-time
+  hardware-profile mechanism is available.
+- **Interactive Wi-Fi scan.** Nearby networks retain the stock captive-portal
+  behavior: SSID, a signal-strength indicator and lock state are displayed, and
+  selecting a row copies its SSID into the Wi-Fi form. Exact RSSI is available
+  from the indicator tooltip. The configured network remains visible and is
+  clearly marked as connected or currently unavailable.
+- **Configurable collector PN.** The default PN remains protected by a checked
+  toggle. Disabling it allows a validated custom PN; re-enabling it restores the
+  default. Identity changes are persisted and applied after a safe restart.
+- **Local page translations.** English, Ukrainian and Russian can be selected on
+  the device page. The browser remembers the selected language.
+- **ESPHome Dashboard adoption.** Ready-made ESP8266, ESP32 and BK72xx builds
+  publish project metadata and a board-specific `dashboard_import` package over
+  mDNS. The Dashboard can create a local YAML for a device flashed from a
+  prebuilt binary; no server-specific ownership key is required.
+- **UART / RS485 diagnostics.** The local page shows passive live counters for
+  transmitted bytes and requests, total physical receive bytes and the age of
+  the last TX/RX activity. Developer-only response/stale counters remain in the
+  diagnostics JSON. Counters reset at boot and never influence transport behavior.
+- **Dark and light themes.** The local page uses the dark theme by default and
+  remembers the user's theme toggle alongside the language preference.
+
+### Fixed
+- The always-on local web server is initialized only after the network stack is
+  ready. Starting AsyncTCP from the component's pre-Wi-Fi setup priority caused
+  an ESP32 boot loop; captive-portal registration remains available before Wi-Fi.
+
+### Changed
+- Collector identity, Home Assistant endpoint and UART framing now have separate
+  save actions. PN changes require explicit browser confirmation and explain the
+  Home Assistant re-add requirement.
+- UART persistence wording now explicitly states that settings are stored in
+  non-volatile device memory and used after every restart.
+- `BRIDGE_VERSION` bumped to `0.1.10`.
+
 ## [0.1.8] - 2026-07-04
 
 ### Fixed
@@ -114,6 +162,8 @@ Home Assistant integration. Highlights:
 - Status LED indication and the `AT+VDTU` virtual-bridge capability probe.
 - Web installer (GitHub Pages) for the ESP8266 and ESP32 presets.
 
+[0.1.10]: https://github.com/groove-max/esp-eybond-collector/compare/v0.1.8...v0.1.10
+[0.1.8]: https://github.com/groove-max/esp-eybond-collector/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/groove-max/esp-eybond-collector/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/groove-max/esp-eybond-collector/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/groove-max/esp-eybond-collector/compare/v0.1.4...v0.1.5

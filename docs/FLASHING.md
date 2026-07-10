@@ -49,6 +49,27 @@ Both presets can be used for TTL, RS232, or RS485:
 
 After flashing, the board opens a setup access point if it cannot join Wi-Fi. Connect to that access point from a phone or laptop and enter your Wi-Fi credentials.
 
+When the board is online, open `http://<collector-ip>/`. The same page is
+available at `http://192.168.4.1/` while you are connected to the board's setup
+network.
+
+The page groups the settings by purpose. Use the Wi-Fi section to choose a
+network, the Home Assistant section to set the server address and port, and the
+UART section to match the inverter's baud rate and serial format. You can also
+change the collector PN, check the compiled pin assignment, watch UART / RS485
+activity and upload a firmware update.
+
+Each section is saved separately. Changing the PN, server address or UART can
+interrupt an existing connection, so the page asks for confirmation first. The
+Wi-Fi list highlights the configured network and shows signal strength and
+security. If the first scan is incomplete, wait a few seconds and refresh.
+
+ESP8266 and ESP32 save UART changes in flash and use them again after a restart.
+BK72xx shows the current values but cannot change them from the page; edit the
+YAML and reflash the board instead. The interface is available in English,
+Ukrainian and Russian. Your language and light/dark theme choices are kept by
+the browser.
+
 If your inverter needs another UART speed, add the bridge in EyeBond Local, open the collector **Configure** menu, choose **Change inverter UART speed**, select the speed, and confirm. On ESP8266/ESP32, the selected speed is saved and restored after reboot or power loss. The inverter connection may drop briefly while the speed changes.
 
 If your board or pins are different, use the ESPHome YAML option below.
@@ -141,6 +162,11 @@ You can check:
 
 If Wi-Fi credentials are wrong or the network is out of range, the board opens a setup access point. Connect to it from a phone or laptop and enter the correct Wi-Fi credentials.
 
+Release profiles with a captive portal provide the unified settings page at `/`
+on both the normal collector IP and `192.168.4.1`. For a custom YAML, add
+`web_configuration: true` under `eybond_collector:` to enable it. The option is
+validated against the presence of `captive_portal:`.
+
 ## Step 6 — Wire the inverter
 
 Power down before changing wiring.
@@ -197,6 +223,26 @@ The ESPHome integration can also add the ESP board as a separate device. This gi
 - ESPHome logs;
 - OTA updates;
 - optional **Inverter UART baud rate** select on ESP8266/ESP32, when it is included in your YAML.
+
+### Add a prebuilt device to ESPHome Device Builder
+
+The ready-made ESP8266 and ESP32 firmware already contains the information that
+ESPHome needs to identify the board. The supplied BK72xx profile includes the
+same information.
+
+1. Make sure the collector and ESPHome Device Builder are on a network where
+   mDNS works.
+2. Open Device Builder and wait for **ESP EyeBond Collector** to appear under
+   discovered devices.
+3. Click **Adopt**, choose a local name if asked, and confirm.
+4. ESPHome creates a YAML that imports the correct board package from this
+   repository. Check the board and pins before installing your first update.
+
+There is no key to copy from the collector page. ESPHome creates the YAML from
+the advertised board package; it does not read the current PN, Home Assistant
+address or UART settings back from the device. Those saved settings normally
+survive an OTA update, but a full flash erase restores the defaults. If the
+device does not appear, check whether your router or VLAN blocks mDNS traffic.
 
 The ESPHome baud-rate select belongs to the ESPHome device. For normal use, prefer the EyeBond Local **Change inverter UART speed** action on the collector.
 

@@ -10,6 +10,15 @@ constexpr size_t HEARTBEAT_PN_LEN = 14;
 constexpr size_t MAX_UART_RESPONSE = 512;
 }  // namespace
 
+bool valid_collector_pn(const std::string &value) {
+  if (value.size() != 14 && value.size() != 18) return false;
+  if (value[0] < 'A' || value[0] > 'Z') return false;
+  for (size_t i = 1; i < value.size(); i++) {
+    if (value[i] < '0' || value[i] > '9') return false;
+  }
+  return true;
+}
+
 bool parse_uart_settings(const std::string &value, UartSettings *out) {
   // Split on commas into up to 4 fields: baud, data, stop, parity.
   std::string fields[4];
@@ -39,10 +48,16 @@ bool parse_uart_settings(const std::string &value, UartSettings *out) {
   UartSettings settings;
   settings.baud = baud;
   if (count >= 2 && !fields[1].empty()) {
-    settings.data_bits = static_cast<uint8_t>(std::atoi(fields[1].c_str()));
+    if (fields[1].size() != 1 || fields[1][0] < '5' || fields[1][0] > '8') {
+      return false;
+    }
+    settings.data_bits = static_cast<uint8_t>(fields[1][0] - '0');
   }
   if (count >= 3 && !fields[2].empty()) {
-    settings.stop_bits = static_cast<uint8_t>(std::atoi(fields[2].c_str()));
+    if (fields[2] != "1" && fields[2] != "2") {
+      return false;
+    }
+    settings.stop_bits = static_cast<uint8_t>(fields[2][0] - '0');
   }
   if (count >= 4 && !fields[3].empty()) {
     std::string parity = fields[3];
@@ -53,8 +68,10 @@ bool parse_uart_settings(const std::string &value, UartSettings *out) {
       settings.parity = UartParity::EVEN;
     } else if (parity == "ODD" || parity == "O") {
       settings.parity = UartParity::ODD;
-    } else {
+    } else if (parity == "NONE" || parity == "N") {
       settings.parity = UartParity::NONE;
+    } else {
+      return false;
     }
   }
   *out = settings;
@@ -100,11 +117,27 @@ bool parse_server_endpoint(const std::string &value, std::string *host, uint16_t
       return false;
     }
   }
-  if (parsed_port == 0 || host_text.empty()) {
+  if (!valid_server_endpoint(host_text, static_cast<uint16_t>(parsed_port))) {
     return false;
   }
   *host = host_text;
   *port = static_cast<uint16_t>(parsed_port);
+  return true;
+}
+
+bool valid_server_endpoint(const std::string &host, uint16_t port) {
+  // PersistedEndpoint stores a NUL-terminated host in char[64]. Reject values
+  // that would otherwise be silently truncated after appearing to save.
+  if (port == 0 || host.empty() || host.size() > 63 || host.front() == '.' || host.back() == '.') {
+    return false;
+  }
+  for (const char ch : host) {
+    // Underscore is intentionally accepted: known factory endpoints include
+    // names such as dtu_ess.eybond.com.
+    if (!(std::isalnum(static_cast<unsigned char>(ch)) || ch == '.' || ch == '-' || ch == '_')) {
+      return false;
+    }
+  }
   return true;
 }
 

@@ -1,0 +1,48 @@
+substitutions:
+  name: eybond-collector
+  friendly_name: EyeBond Collector
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: true
+  project:
+    name: groove-max.eybond-collector
+    version: "0.1.10"
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+
+logger:
+
+wifi:
+  ap: {}
+
+captive_portal:
+
+api:
+
+ota:
+  - platform: esphome
+
+dashboard_import:
+  package_import_url: github://groove-max/esp-eybond-collector/packages/bk72xx.yaml@main
+  import_full_config: false
+
+external_components:
+  - source: github://groove-max/esp-eybond-collector
+    components: [eybond_collector]
+
+uart:
+  id: inverter_uart
+  tx_pin: GPIO11
+  rx_pin: GPIO10
+  baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+eybond_collector:
+  id: bridge
+  uart_id: inverter_uart
+  web_configuration: true

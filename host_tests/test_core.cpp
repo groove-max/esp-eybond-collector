@@ -139,6 +139,19 @@ TEST(core_answers_server_heartbeat_with_same_tid) {
   CHECK_HEX(calls[0].data, "00420000001001015630303030303230303030303030");
 }
 
+TEST(core_answers_ha_heartbeat_payload_with_same_tid) {
+  Fixture fx;
+  fx.connect();
+  // ha-eybond-local build_heartbeat_request() sends an 8-byte payload:
+  // YY MM DD hh mm ss interval_be16.  The bridge must treat it as the same
+  // server-initiated FC=1 heartbeat request and keep the framed link alive.
+  fx.feed_frame(0x0043, 0x0000, 0x01, FC_HEARTBEAT,
+                {0x1A, 0x07, 0x08, 0x12, 0x34, 0x56, 0x00, 0x3C}, 2000);
+  const auto calls = fx.actions.take();
+  CHECK(calls.size() == 1);
+  CHECK_HEX(calls[0].data, "00430000001001015630303030303230303030303030");
+}
+
 TEST(core_fc2_param5_returns_firmware) {
   Fixture fx;
   fx.connect();
@@ -607,11 +620,17 @@ TEST(parse_server_endpoint_forms) {
   CHECK_STR(host, "ha.local");
   CHECK(port == 1234);
 
+  CHECK(parse_server_endpoint("dtu_ess.eybond.com,18899,TCP", &host, &port));
+  CHECK_STR(host, "dtu_ess.eybond.com");
+  CHECK(port == 18899);
+
   CHECK(!parse_server_endpoint("", &host, &port));
   CHECK(!parse_server_endpoint("192.0.2.10", &host, &port));
   CHECK(!parse_server_endpoint("192.0.2.10,0,TCP", &host, &port));
   CHECK(!parse_server_endpoint("192.0.2.10,99999", &host, &port));
   CHECK(!parse_server_endpoint(",8899,TCP", &host, &port));
+  CHECK(!parse_server_endpoint("bad host,8899,TCP", &host, &port));
+  CHECK(!parse_server_endpoint(std::string(64, 'a') + ",8899,TCP", &host, &port));
 }
 
 namespace {
@@ -710,4 +729,17 @@ TEST(parse_uart_settings_forms) {
   CHECK(!parse_uart_settings("abc", &s));
   CHECK(!parse_uart_settings(",8,1,NONE", &s));
   CHECK(!parse_uart_settings("0,8,1,NONE", &s));
+  CHECK(!parse_uart_settings("2400,4,1,NONE", &s));
+  CHECK(!parse_uart_settings("2400,9,1,NONE", &s));
+  CHECK(!parse_uart_settings("2400,8,3,NONE", &s));
+  CHECK(!parse_uart_settings("2400,8,1,MARK", &s));
+}
+
+TEST(validate_collector_pn_forms) {
+  CHECK(valid_collector_pn("V0000000000001"));
+  CHECK(valid_collector_pn("V00000000000000001"));
+  CHECK(!valid_collector_pn("v0000000000001"));
+  CHECK(!valid_collector_pn("V000000000001"));
+  CHECK(!valid_collector_pn("V000000000000000001"));
+  CHECK(!valid_collector_pn("V00000000000A1"));
 }

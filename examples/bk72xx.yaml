@@ -13,6 +13,10 @@
 
 esphome:
   name: eybond-bk72xx
+  name_add_mac_suffix: true
+  project:
+    name: groove-max.eybond-collector
+    version: "0.1.10"
 
 bk72xx:
   board: generic-bk7231n-qfn32-tuya  # set to your actual LibreTiny board
@@ -35,6 +39,10 @@ api:
 ota:
   - platform: esphome
 
+dashboard_import:
+  package_import_url: github://groove-max/esp-eybond-collector/packages/bk72xx.yaml@main
+  import_full_config: false
+
 external_components:
   - source: github://groove-max/esp-eybond-collector
     components: [eybond_collector]
@@ -51,6 +59,7 @@ uart:
 eybond_collector:
   id: bridge
   uart_id: inverter_uart
+  web_configuration: true
   # flow_control_pin: GPIO12   # MAX485 DE/RE for RS485 inverters
   # status_led_pin: GPIO8      # optional status LED (connection state); pick a free pin on your board
   # com_led_pin: GPIO9         # optional separate LED for inverter-comms activity (see docs/FLASHING.md)

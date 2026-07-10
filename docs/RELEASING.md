@@ -12,6 +12,7 @@ Every pull request and push runs:
 - ESPHome compile for the two release presets:
   - `esp8266-d1-mini`
   - `esp32-devkit`
+- ESPHome compile checks for the YAML-only BK72xx and ESP32 BLE profiles.
 
 ## Release artifacts
 
@@ -22,6 +23,11 @@ Pushing a tag like `v0.1.0` builds:
 - `manifest-esp8266-d1-mini.json`
 - `manifest-esp32-devkit.json`
 - GitHub Pages web installer content
+- a `SHA256SUMS` file for the published binaries and manifests.
+
+The GitHub release description is rendered from the matching version section in
+`CHANGELOG.md`. Keep that section useful to people upgrading the firmware; the
+release workflow rejects a missing or empty section.
 
 BLE and BK72xx are not shipped as web binaries in the first release. They remain YAML-based profiles.
 
@@ -45,10 +51,11 @@ Output:
 
 ## Before tagging
 
-1. Bump the version: `BRIDGE_VERSION` in `components/eybond_collector/profile.h` is the
-   single source of truth. It is embedded in the FC=2 param-6 hardware-version marker
-   (`esp-collector/<version>/<platform>`) that EyeBond Local keys the bridge on; no host
-   test hard-codes it, so nothing else needs to move with it.
+1. Bump `BRIDGE_VERSION` in `components/eybond_collector/profile.h`. It is embedded in
+   the FC=2 param-6 hardware-version marker (`esp-collector/<version>/<platform>`).
+   Mirror the same project version in the three release examples and three files under
+   `packages/`; `tools/build_web_release.py` rejects a metadata or release-tag
+   version mismatch before building.
 2. Add the new version's entry to [`CHANGELOG.md`](../CHANGELOG.md).
 3. Confirm the release examples still match the documented pinout.
 4. Confirm `examples/secrets.yaml` is not committed.
