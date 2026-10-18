@@ -306,8 +306,10 @@ void CollectorCore::handle_frame_(const FrameHeader &header, const uint8_t *payl
         text = profile_.pn;
       } else if (parameter == 5) {  // firmware_version
         text = profile_.firmware_version;
-      } else if (parameter == 21) {  // domain_address_1: current server endpoint
-        text = cloud_endpoint_;
+      } else if (parameter == 21) {  // configured endpoint, including an accepted staged write
+        if (!actions_->query_param(parameter, &text)) {
+          text = cloud_endpoint_;
+        }
       } else if (parameter == 34) {  // serial_baudrate: leading field of "2400,8,1,NONE"
         text = profile_.uart.substr(0, profile_.uart.find(','));
       } else {

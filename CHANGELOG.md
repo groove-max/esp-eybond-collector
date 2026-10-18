@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Framed endpoint readback now reports accepted staged settings before Apply
+  and during the deferred reconnect window; parameter 30 remains pending until
+  the endpoint is applied. Invalid or overlapping endpoint writes are rejected
+  without replacing the accepted value. Explicit web endpoint updates supersede
+  an uncommitted framed write, including restoration of the current endpoint.
+
 ## [0.1.10] - 2026-07-10
 
 ### Added

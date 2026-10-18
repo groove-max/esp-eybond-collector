@@ -1,6 +1,7 @@
 #ifdef USE_ARDUINO
 
 #include "eybond_collector.h"
+#include "endpoint_readback.h"
 
 #include <cinttypes>
 #include <cctype>
@@ -789,8 +790,12 @@ bool EybondCollector::query_param(uint8_t parameter, std::string *out) {
       *out = buffer;
       return true;
     }
-    case 30:  // reboot_required: "1" while a staged WiFi apply is pending
-      *out = wifi_apply_requested_ ? "1" : "0";
+    case 21:
+      return eybond::pending_endpoint_readback(pending_endpoint_, endpoint_apply_requested_,
+                                               staged_endpoint_host_, staged_endpoint_port_, out);
+    case 30:  // Pending means accepted but not yet applied, not only scheduled.
+      *out = (eybond::endpoint_apply_pending(pending_endpoint_, endpoint_apply_requested_) || wifi_apply_requested_ ||
+              !pending_wifi_ssid_.empty() || !pending_wifi_password_.empty()) ? "1" : "0";
       return true;
     case 41:  // router_ssid (current STA network)
       *out = WiFi.SSID().c_str();
@@ -822,6 +827,9 @@ uint8_t EybondCollector::set_param(uint8_t parameter, const std::string &value) 
     return this->apply_baud_rate(baud) ? 0 : 1;
   }
   if (parameter == 21) {  // domain_address_1: staged server endpoint
+    std::string host;
+    uint16_t port = 0;
+    if (endpoint_apply_requested_ || !eybond::parse_server_endpoint(value, &host, &port)) return 1;
     pending_endpoint_ = value;
     return 0;
   }
@@ -1083,6 +1091,7 @@ bool EybondCollector::stage_web_settings(const std::string &host, uint16_t port,
     return false;
   }
 
+  pending_endpoint_.clear();  // This explicit web update supersedes an uncommitted FC=3 write.
   staged_endpoint_host_ = host;
   staged_endpoint_port_ = port;
   endpoint_apply_requested_ = true;
@@ -1142,7 +1151,9 @@ bool EybondCollector::stage_web_endpoint(const std::string &host, uint16_t port,
     if (error != nullptr) *error = "Enter a valid host and port.";
     return false;
   }
-  if (host == this->current_server_host() && port == this->current_server_port()) return true;
+  if (host == this->current_server_host() && port == this->current_server_port() &&
+      !eybond::endpoint_apply_pending(pending_endpoint_, endpoint_apply_requested_)) return true;
+  pending_endpoint_.clear();
   staged_endpoint_host_ = host;
   staged_endpoint_port_ = port;
   endpoint_apply_requested_ = true;

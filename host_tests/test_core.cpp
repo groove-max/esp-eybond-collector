@@ -370,8 +370,13 @@ namespace {
 class ParamActions : public MockActions {
  public:
   std::vector<std::pair<uint8_t, std::string>> writes;
+  std::string configured_endpoint;
 
   bool query_param(uint8_t parameter, std::string *out) override {
+    if (parameter == 21 && !configured_endpoint.empty()) {
+      *out = configured_endpoint;
+      return true;
+    }
     if (parameter == 41) {
       *out = "bench-net";
       return true;
@@ -431,6 +436,19 @@ TEST(core_fc2_param_via_platform_hook) {
   core.loop(1000);
   core.on_tcp_connected(1100);
   actions.calls.clear();
+
+  actions.configured_endpoint = "192.0.2.30,18897,TCP";
+  const uint8_t endpoint_parameter[] = {21};
+  const auto endpoint_query = build_frame(0x30, 0x0994, 0x10, FC_QUERY_COLLECTOR,
+                                          endpoint_parameter, 1);
+  core.on_tcp_data(endpoint_query.data(), endpoint_query.size(), 1999);
+  const auto endpoint_calls = actions.take();
+  CHECK(endpoint_calls.size() == 1);
+  CHECK(endpoint_calls[0].data[8] == 0 && endpoint_calls[0].data[9] == 21);
+  CHECK_STR(std::string(endpoint_calls[0].data.begin() + 10, endpoint_calls[0].data.end()),
+            actions.configured_endpoint);
+  CHECK_STR(core.server_host(), "192.0.2.10");
+  CHECK(core.server_port() == 8899);  // Readback must not perform the redirect.
 
   const std::vector<uint8_t> query = build_frame(0x31, 0x0994, 0x10, FC_QUERY_COLLECTOR,
                                                  (const uint8_t[]){41}, 1);
