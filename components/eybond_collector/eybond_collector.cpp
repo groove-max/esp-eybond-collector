@@ -628,6 +628,7 @@ void EybondCollector::setup() {
   if (!restored && !static_server_host_.empty()) {
     core_->set_server_endpoint(static_server_host_, static_server_port_, millis());
   }
+  this->publish_web_state_();
 
 #ifdef USE_EYBOND_WEB_CONFIG
   if (web_configuration_enabled_ && !web_handler_registered_ &&
@@ -674,6 +675,8 @@ void EybondCollector::loop() {
   }
 #endif
 
+  // BLE provisioning must be able to bring an OFFLINE station online.
+  this->process_wifi_apply_(now);
   if (!network::is_connected()) {
     if (tcp_up_) {
       tcp_.stop();
@@ -681,6 +684,7 @@ void EybondCollector::loop() {
       core_->on_tcp_closed(now);
     }
     this->process_reboot_(now);
+    this->publish_web_state_();
     this->update_leds_(now);
     return;
   }
@@ -703,27 +707,6 @@ void EybondCollector::loop() {
         core_->on_udp_datagram(buffer, static_cast<size_t>(read_len), now);
       }
       packet_len = udp_.parsePacket();
-    }
-  }
-
-  // TCP link state + inbound data
-  if (tcp_up_ && !tcp_.connected()) {
-    tcp_.stop();
-    tcp_up_ = false;
-    ESP_LOGW(TAG, "Server connection lost");
-    core_->on_tcp_closed(now);
-  }
-  if (tcp_up_) {
-    int available = tcp_.available();
-    while (available > 0) {
-      uint8_t buffer[128];
-      const int chunk = available > static_cast<int>(sizeof(buffer)) ? sizeof(buffer) : available;
-      const int read_len = tcp_.read(buffer, chunk);
-      if (read_len <= 0) {
-        break;
-      }
-      core_->on_tcp_data(buffer, static_cast<size_t>(read_len), now);
-      available = tcp_.available();
     }
   }
 
@@ -758,6 +741,25 @@ void EybondCollector::loop() {
     has_uart_rx_activity_ = true;
   }
 
+  // Consume already-buffered UART data before accepting new TCP commands, so
+  // drain timers cannot overlook late bytes waiting in the hardware FIFO.
+  if (tcp_up_ && !tcp_.connected()) {
+    tcp_.stop();
+    tcp_up_ = false;
+    ESP_LOGW(TAG, "Server connection lost");
+    core_->on_tcp_closed(millis());
+  }
+  if (tcp_up_) {
+    int available = tcp_.available();
+    while (available > 0) {
+      uint8_t buffer[128];
+      const int chunk = available > static_cast<int>(sizeof(buffer)) ? sizeof(buffer) : available;
+      const int read_len = tcp_.read(buffer, chunk);
+      if (read_len <= 0) break;
+      core_->on_tcp_data(buffer, static_cast<size_t>(read_len), millis());
+      available = tcp_.available();
+    }
+  }
   core_->loop(millis());
   this->process_pending_connect_();
   this->process_endpoint_apply_(millis());
@@ -767,6 +769,7 @@ void EybondCollector::loop() {
   this->process_reboot_(millis());
   this->poll_wifi_scan_(millis());
   this->update_leds_(millis());
+  this->publish_web_state_();
 }
 
 bool EybondCollector::query_param(uint8_t parameter, std::string *out) {
@@ -800,13 +803,18 @@ bool EybondCollector::query_param(uint8_t parameter, std::string *out) {
       *out = buffer;
       return true;
     }
-    case 21:
+    case 21: {
+      LockGuard lock(settings_mutex_);
       return eybond::pending_endpoint_readback(pending_endpoint_, endpoint_apply_requested_,
                                                staged_endpoint_host_, staged_endpoint_port_, out);
-    case 30:  // Pending means accepted but not yet applied, not only scheduled.
+    }
+    case 30: {  // Pending means accepted but not yet applied, not only scheduled.
+      LockGuard lock(settings_mutex_);
       *out = (eybond::endpoint_apply_pending(pending_endpoint_, endpoint_apply_requested_) || wifi_apply_requested_ ||
-              !pending_wifi_ssid_.empty() || !pending_wifi_password_.empty()) ? "1" : "0";
+              !pending_wifi_ssid_.empty() || !pending_wifi_password_.empty() ||
+              pn_apply_requested_ || web_uart_apply_requested_ || reboot_requested_) ? "1" : "0";
       return true;
+    }
     case 41:  // router_ssid (current STA network)
       *out = WiFi.SSID().c_str();
       return true;
@@ -833,9 +841,12 @@ bool EybondCollector::query_param(uint8_t parameter, std::string *out) {
 
 uint8_t EybondCollector::set_param(uint8_t parameter, const std::string &value) {
   if (parameter == 34) {  // serial_baudrate
-    const uint32_t baud = static_cast<uint32_t>(strtoul(value.c_str(), nullptr, 10));
-    return this->apply_baud_rate(baud) ? 0 : 1;
+    eybond::UartSettings settings;
+    if (value.find(',') != std::string::npos || !eybond::parse_uart_settings(value, &settings) ||
+        (core_ != nullptr && core_->awaiting_uart_response())) return 1;
+    return this->apply_baud_rate(settings.baud) ? 0 : 1;
   }
+  LockGuard lock(settings_mutex_);
   if (parameter == 21) {  // domain_address_1: staged server endpoint
     std::string host;
     uint16_t port = 0;
@@ -844,6 +855,7 @@ uint8_t EybondCollector::set_param(uint8_t parameter, const std::string &value) 
     return 0;
   }
   if (parameter == 29) {  // system_operation: commit staged changes or restart
+    if (value != "1") return 1;
     bool had_staged = !pending_endpoint_.empty();
 #ifdef USE_WIFI
     had_staged = had_staged || !pending_wifi_ssid_.empty() || !pending_wifi_password_.empty();
@@ -890,6 +902,7 @@ uint8_t EybondCollector::set_param(uint8_t parameter, const std::string &value) 
       // turn the endpoint switch into an unwanted reboot.
       return 0;
     }
+    if (pn_apply_requested_ || web_uart_apply_requested_ || reboot_requested_) return 1;
     this->request_reboot_(millis());
     return 0;
   }
@@ -960,17 +973,17 @@ bool EybondCollector::reconfigure_uart_(uint32_t baud, uint8_t data_bits, uint8_
 #endif
 }
 
-void EybondCollector::apply_uart(const std::string &value) {
+bool EybondCollector::apply_uart(const std::string &value) {
   // AT+UART=<baud,data,stop,parity> (e.g. "9600,8,1,EVEN"). Apply the full framing.
   eybond::UartSettings s;
   if (!eybond::parse_uart_settings(value, &s) || !this->baud_supported_(s.baud)) {
-    return;  // malformed/unsupported; the AT reply is already W000 (factory mirror)
+    return false;
   }
   const uart::UARTParityOptions parity = s.parity == eybond::UartParity::EVEN ? uart::UART_CONFIG_PARITY_EVEN
                                          : s.parity == eybond::UartParity::ODD ? uart::UART_CONFIG_PARITY_ODD
                                                                                : uart::UART_CONFIG_PARITY_NONE;
   if (!this->reconfigure_uart_(s.baud, s.data_bits, s.stop_bits, parity)) {
-    return;
+    return false;
   }
   this->persist_uart_settings_();
   if (core_ != nullptr) {
@@ -979,6 +992,17 @@ void EybondCollector::apply_uart(const std::string &value) {
   if (baud_listener_) {
     baud_listener_(s.baud);
   }
+  return true;
+}
+
+bool EybondCollector::request_restart() {
+  LockGuard lock(settings_mutex_);
+  if (eybond::endpoint_apply_pending(pending_endpoint_, endpoint_apply_requested_) || wifi_apply_requested_ ||
+      !pending_wifi_ssid_.empty() || !pending_wifi_password_.empty() || reboot_requested_ ||
+      pn_apply_requested_ || web_uart_apply_requested_)
+    return false;
+  this->request_reboot_(millis());
+  return true;
 }
 
 bool EybondCollector::apply_baud_rate(uint32_t baud) {
@@ -1064,23 +1088,37 @@ uint16_t EybondCollector::current_server_port() const {
 // value is the truthful state for the form even though the hardware/core still
 // exposes the previous value.
 std::string EybondCollector::web_display_uart_settings() const {
-  return web_uart_apply_requested_ ? web_staged_uart_ : this->uart_settings_string_();
+  LockGuard lock(settings_mutex_);
+  return web_uart_apply_requested_ ? web_staged_uart_ : web_current_uart_;
 }
 
 std::string EybondCollector::web_display_collector_pn() const {
+  LockGuard lock(settings_mutex_);
   return pn_apply_requested_ ? web_staged_pn_ : collector_pn_;
 }
 
 bool EybondCollector::web_display_uses_default_collector_pn() const {
+  LockGuard lock(settings_mutex_);
   return pn_apply_requested_ ? web_staged_use_default_pn_ : using_default_pn_;
 }
 
 std::string EybondCollector::web_display_server_host() const {
-  return endpoint_apply_requested_ ? staged_endpoint_host_ : this->current_server_host();
+  LockGuard lock(settings_mutex_);
+  return endpoint_apply_requested_ ? staged_endpoint_host_ : web_current_host_;
 }
 
 uint16_t EybondCollector::web_display_server_port() const {
-  return endpoint_apply_requested_ ? staged_endpoint_port_ : this->current_server_port();
+  LockGuard lock(settings_mutex_);
+  return endpoint_apply_requested_ ? staged_endpoint_port_ : web_current_port_;
+}
+
+void EybondCollector::publish_web_state_() {
+  LockGuard lock(settings_mutex_);
+  web_current_host_ = this->current_server_host();
+  web_current_port_ = this->current_server_port();
+  web_current_uart_ = this->uart_settings_string_();
+  web_link_connected_ = core_ != nullptr && core_->connected();
+  web_response_pending_ = core_ != nullptr && core_->awaiting_uart_response();
 }
 
 UartDiagnosticsSnapshot EybondCollector::uart_diagnostics_snapshot(uint32_t now) {
@@ -1102,6 +1140,7 @@ bool EybondCollector::stage_web_settings(const std::string &host, uint16_t port,
                                          bool pn_config_present, bool use_default_pn, const std::string &pn_value,
                                          std::string *error) {
 #ifdef USE_EYBOND_WEB_CONFIG
+  LockGuard lock(settings_mutex_);
   if (!eybond::valid_server_endpoint(host, port)) {
     if (error != nullptr) *error = "Enter a valid host and port.";
     return false;
@@ -1131,7 +1170,7 @@ bool EybondCollector::stage_web_settings(const std::string &host, uint16_t port,
   staged_endpoint_port_ = port;
   endpoint_apply_requested_ = true;
   endpoint_apply_at_ms_ = millis() + 250;
-  if (!uart_value.empty() && uart_value != this->uart_settings_string_()) {
+  if (!uart_value.empty() && uart_value != web_current_uart_) {
     web_staged_uart_ = uart_value;
     web_uart_apply_requested_ = true;
   }
@@ -1158,6 +1197,7 @@ bool EybondCollector::stage_web_settings(const std::string &host, uint16_t port,
 bool EybondCollector::stage_web_collector_identity(bool use_default_pn, const std::string &pn_value,
                                                    std::string *error) {
 #ifdef USE_EYBOND_WEB_CONFIG
+  LockGuard lock(settings_mutex_);
   std::string normalized_pn = pn_value;
   for (char &ch : normalized_pn) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
   if (!use_default_pn && !eybond::valid_collector_pn(normalized_pn)) {
@@ -1182,11 +1222,12 @@ bool EybondCollector::stage_web_collector_identity(bool use_default_pn, const st
 
 bool EybondCollector::stage_web_endpoint(const std::string &host, uint16_t port, std::string *error) {
 #ifdef USE_EYBOND_WEB_CONFIG
+  LockGuard lock(settings_mutex_);
   if (!eybond::valid_server_endpoint(host, port)) {
     if (error != nullptr) *error = "Enter a valid host and port.";
     return false;
   }
-  if (host == this->current_server_host() && port == this->current_server_port() &&
+  if (host == web_current_host_ && port == web_current_port_ &&
       !eybond::endpoint_apply_pending(pending_endpoint_, endpoint_apply_requested_)) return true;
   pending_endpoint_.clear();
   staged_endpoint_host_ = host;
@@ -1204,6 +1245,7 @@ bool EybondCollector::stage_web_endpoint(const std::string &host, uint16_t port,
 
 bool EybondCollector::stage_web_uart(const std::string &uart_value, std::string *error) {
 #ifdef USE_EYBOND_WEB_CONFIG
+  LockGuard lock(settings_mutex_);
   if (!this->runtime_uart_configuration_supported()) {
     if (error != nullptr) *error = "Runtime UART changes are not supported on this platform.";
     return false;
@@ -1215,7 +1257,7 @@ bool EybondCollector::stage_web_uart(const std::string &uart_value, std::string 
     if (error != nullptr) *error = "Unsupported UART framing.";
     return false;
   }
-  if (uart_value != this->uart_settings_string_()) {
+  if (uart_value != web_current_uart_) {
     web_staged_uart_ = uart_value;
     web_uart_apply_requested_ = true;
   }
@@ -1311,34 +1353,44 @@ bool EybondCollector::persist_collector_pn_(bool use_default, const std::string 
 }
 
 void EybondCollector::process_endpoint_apply_(uint32_t now) {
-  if (!endpoint_apply_requested_ || static_cast<int32_t>(now - endpoint_apply_at_ms_) < 0) {
-    return;
+  std::string host;
+  uint16_t port;
+  {
+    LockGuard lock(settings_mutex_);
+    if (!endpoint_apply_requested_ || static_cast<int32_t>(now - endpoint_apply_at_ms_) < 0) return;
+    endpoint_apply_requested_ = false;
+    host.swap(staged_endpoint_host_);
+    port = staged_endpoint_port_;
+    staged_endpoint_port_ = 0;
   }
-  endpoint_apply_requested_ = false;
   if (core_ != nullptr) {
-    ESP_LOGI(TAG, "Applying staged server endpoint %s:%u", staged_endpoint_host_.c_str(),
-             static_cast<unsigned>(staged_endpoint_port_));
-    core_->set_server_endpoint(staged_endpoint_host_, staged_endpoint_port_, now);  // persists via callback
+    ESP_LOGI(TAG, "Applying staged server endpoint %s:%u", host.c_str(), static_cast<unsigned>(port));
+    core_->set_server_endpoint(host, port, now);  // persists via callback, outside the staging mutex
   }
-  staged_endpoint_host_.clear();
-  staged_endpoint_port_ = 0;
 }
 
 void EybondCollector::process_web_uart_apply_() {
-  if (!web_uart_apply_requested_) {
-    return;
+  std::string uart;
+  {
+    LockGuard lock(settings_mutex_);
+    if (!web_uart_apply_requested_ || (core_ != nullptr && core_->awaiting_uart_response())) return;
+    web_uart_apply_requested_ = false;
+    uart.swap(web_staged_uart_);
   }
-  web_uart_apply_requested_ = false;
-  const std::string uart = web_staged_uart_;
-  web_staged_uart_.clear();
   this->apply_uart(uart);
 }
 
 void EybondCollector::process_pn_apply_(uint32_t now) {
-  if (!pn_apply_requested_ || static_cast<int32_t>(now - pn_apply_at_ms_) < 0) return;
-  pn_apply_requested_ = false;
-  const bool persisted = this->persist_collector_pn_(web_staged_use_default_pn_, web_staged_pn_);
-  web_staged_pn_.clear();
+  std::string pn;
+  bool use_default;
+  {
+    LockGuard lock(settings_mutex_);
+    if (!pn_apply_requested_ || static_cast<int32_t>(now - pn_apply_at_ms_) < 0) return;
+    pn_apply_requested_ = false;
+    pn.swap(web_staged_pn_);
+    use_default = web_staged_use_default_pn_;
+  }
+  const bool persisted = this->persist_collector_pn_(use_default, pn);
   if (persisted) {
     ESP_LOGI(TAG, "Collector PN selection changed; scheduling restart");
     this->request_reboot_(now);
@@ -1347,15 +1399,17 @@ void EybondCollector::process_pn_apply_(uint32_t now) {
 
 void EybondCollector::process_wifi_apply_(uint32_t now) {
 #ifdef USE_WIFI
-  if (!wifi_apply_requested_ || static_cast<int32_t>(now - wifi_apply_at_ms_) < 0) {
-    return;
+  std::string ssid, password;
+  {
+    LockGuard lock(settings_mutex_);
+    if (!wifi_apply_requested_ || static_cast<int32_t>(now - wifi_apply_at_ms_) < 0) return;
+    wifi_apply_requested_ = false;
+    ssid.swap(pending_wifi_ssid_);
+    password.swap(pending_wifi_password_);
   }
-  wifi_apply_requested_ = false;
   ESP_LOGI(TAG, "Applying new WiFi credentials (ssid length %u)",
-           static_cast<unsigned>(pending_wifi_ssid_.size()));
-  wifi::global_wifi_component->save_wifi_sta(pending_wifi_ssid_, pending_wifi_password_);
-  pending_wifi_ssid_.clear();
-  pending_wifi_password_.clear();
+           static_cast<unsigned>(ssid.size()));
+  wifi::global_wifi_component->save_wifi_sta(ssid, password);
 #else
   (void) now;
 #endif
@@ -1471,23 +1525,27 @@ void EybondCollector::setup_ble_() {
 }
 
 void EybondCollector::ble_feed_(const std::vector<uint8_t> &data) {
-  ble_rx_.append(reinterpret_cast<const char *>(data.data()), data.size());
+  LockGuard lock(ble_rx_mutex_);
+  if (data.size() > 512 - ble_rx_.size()) ble_rx_overflow_ = true;
+  if (!ble_rx_overflow_) ble_rx_.append(reinterpret_cast<const char *>(data.data()), data.size());
   ble_rx_last_ms_ = millis();
   ble_rx_pending_ = true;
 }
 
 void EybondCollector::process_ble_(uint32_t now) {
-  if (!ble_rx_pending_ || ble_ == nullptr) {
-    return;
-  }
+  if (ble_ == nullptr) return;
   // Coalesce ATT fragments: the client waits for our notify before sending the
   // next command, so a brief quiet period reliably frames exactly one command.
-  if (static_cast<int32_t>(now - ble_rx_last_ms_) < static_cast<int32_t>(BLE_RX_SETTLE_MS)) {
-    return;
+  std::string command;
+  {
+    LockGuard lock(ble_rx_mutex_);
+    if (!ble_rx_pending_ || static_cast<int32_t>(now - ble_rx_last_ms_) < static_cast<int32_t>(BLE_RX_SETTLE_MS)) return;
+    ble_rx_pending_ = false;
+    if (!ble_rx_overflow_) command.swap(ble_rx_);
+    ble_rx_.clear();
+    ble_rx_overflow_ = false;
   }
-  ble_rx_pending_ = false;
-  const std::string command = ble_rx_;
-  ble_rx_.clear();
+  if (command.empty()) return;
 
   const std::string response = ble_->handle_command(command);
   if (response.empty() || ble_notify_char_ == nullptr) {
@@ -1511,6 +1569,7 @@ void EybondCollector::process_ble_(uint32_t now) {
 
 void EybondCollector::ble_apply_wifi(const std::string &ssid, const std::string &password) {
 #ifdef USE_WIFI
+  LockGuard lock(settings_mutex_);
   pending_wifi_ssid_ = ssid;
   pending_wifi_password_ = password;
   wifi_apply_requested_ = true;
@@ -1597,7 +1656,12 @@ void EybondCollector::tcp_connect(const std::string &host, uint16_t port) {
 
 void EybondCollector::tcp_send(const uint8_t *data, size_t len) {
   if (tcp_up_) {
-    tcp_.write(data, len);
+    if (tcp_.write(data, len) != len) {
+      // Never append another frame to a truncated one or replay a prefix.
+      tcp_.stop();
+      tcp_up_ = false;
+      core_->on_tcp_closed(millis());
+    }
   }
 }
 

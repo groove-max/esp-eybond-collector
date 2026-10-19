@@ -6,7 +6,23 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-10-19
+
 ### Fixed
+- Drop queued inverter commands and drain late UART data after a timeout,
+  oversized reply or interrupted transaction, including across TCP reconnects.
+  Expired command-spacing timers no longer block polling after long idle periods.
+- Apply Bluetooth Wi-Fi provisioning even when the station is offline. Bound
+  fragmented BLE input and synchronize it with the component loop.
+- Report AT write success only when the platform accepts the operation. Soft
+  restart now performs a real deferred reboot; unknown or invalid writes fail.
+  AT endpoint writes use the same staged readback/Apply flow as framed writes.
+- Retire the TCP connection on a short write instead of appending another frame
+  to a truncated packet. Never replay the partially sent frame.
+- Reject overflowing UART baud values and extra framing fields.
+- Synchronize web configuration staging and publish loop-owned display snapshots.
+- Disable the unrelated Native API reconnect reboot in the supplied profiles;
+  an EyeBond-only installation does not need a permanent ESPHome API client.
 - Framed endpoint readback now reports accepted staged settings before Apply
   and during the deferred reconnect window; parameter 30 remains pending until
   the endpoint is applied. Invalid or overlapping endpoint writes are rejected

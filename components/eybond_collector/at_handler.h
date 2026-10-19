@@ -28,7 +28,8 @@ bool parse_at_line(const std::string &line, AtCommand *out);
 
 std::string build_at_response(const std::string &command, const std::string &value);
 
-// write_ack mirrors the fake collector: every write is acknowledged with "W000".
+// Pure reply generation cannot execute a write. Core/platform confirm writes;
+// this helper refuses them rather than fabricating success.
 std::string build_at_reply(const AtCommand &command, const CollectorProfile &profile,
                            const AtRuntimeValues &runtime);
 

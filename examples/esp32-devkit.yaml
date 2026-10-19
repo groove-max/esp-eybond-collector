@@ -12,7 +12,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: groove-max.eybond-collector
-    version: "0.1.10"
+    version: "0.1.11"
 
 esp32:
   board: esp32dev
@@ -70,3 +70,4 @@ select:
     restore_value: true
 
 api:
+  reboot_timeout: 0s  # Reverse TCP does not require an ESPHome Native API client.

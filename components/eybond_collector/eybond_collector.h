@@ -142,8 +142,8 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   bool web_display_uses_default_collector_pn() const;
   std::string web_display_server_host() const;
   uint16_t web_display_server_port() const;
-  bool collector_link_connected() const { return core_ != nullptr && core_->connected(); }
-  bool uart_response_pending() const { return core_ != nullptr && core_->awaiting_uart_response(); }
+  bool collector_link_connected() const { LockGuard lock(settings_mutex_); return web_link_connected_; }
+  bool uart_response_pending() const { LockGuard lock(settings_mutex_); return web_response_pending_; }
   UartDiagnosticsSnapshot uart_diagnostics_snapshot(uint32_t now);
   bool stage_web_collector_identity(bool use_default_pn, const std::string &pn, std::string *error);
   bool stage_web_endpoint(const std::string &host, uint16_t port, std::string *error);
@@ -164,11 +164,13 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   std::string time_string() override { return ""; }
   bool query_param(uint8_t parameter, std::string *out) override;
   uint8_t set_param(uint8_t parameter, const std::string &value) override;
-  void apply_uart(const std::string &value) override;
+  bool apply_uart(const std::string &value) override;
+  bool request_restart() override;
   void on_server_endpoint_changed(const std::string &host, uint16_t port) override;
   void log(const char *message) override;
 
   void process_pending_connect_();
+  void publish_web_state_();
   void process_endpoint_apply_(uint32_t now);
   void process_web_uart_apply_();
   void process_pn_apply_(uint32_t now);
@@ -292,6 +294,12 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
 
   // Local web configuration. HTTP callbacks merely validate and stage
   // changes; the component loop applies UART/endpoint state and writes flash.
+  mutable Mutex settings_mutex_;
+  std::string web_current_host_;
+  uint16_t web_current_port_{0};
+  std::string web_current_uart_;
+  bool web_link_connected_{false};
+  bool web_response_pending_{false};
   bool web_configuration_enabled_{false};
   bool web_handler_registered_{false};
   bool web_server_initialized_{false};
@@ -320,6 +328,8 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   // after a short quiet period (the client always waits for our notify before
   // sending the next command, so a settle window cleanly frames one command).
   std::string ble_rx_;
+  Mutex ble_rx_mutex_;
+  bool ble_rx_overflow_{false};
   uint32_t ble_rx_last_ms_{0};
   bool ble_rx_pending_{false};
   // Wi-Fi scan refresh is deferred to after the BLE notify (see ble_wifi_scan /

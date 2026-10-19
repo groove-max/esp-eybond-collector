@@ -104,10 +104,9 @@ class CollectorCore {
       (void) value;
       return 1;
     }
-    // AT+UART=<baud,data,stop,parity> write. The reply is always W000 (factory
-    // mirror); platforms that can re-configure the inverter UART at runtime
-    // apply the value here and then call update_uart_description().
-    virtual void apply_uart(const std::string &value) { (void) value; }
+    // Success means the platform actually accepted the operation.
+    virtual bool apply_uart(const std::string &value) { (void) value; return false; }
+    virtual bool request_restart() { return false; }
     // Called whenever the reverse-TCP server endpoint actually changes (from a
     // discovery redirect or an HA-written endpoint). Platforms persist it here
     // so the bridge reconnects to the same HA across reboots without waiting for
@@ -167,6 +166,8 @@ class CollectorCore {
   void maybe_start_forward_(uint32_t now_ms);
   void finish_forward_(bool send_response, uint32_t now_ms);
   void drop_link_state_(uint32_t now_ms, bool backoff);
+  void quarantine_uart_(uint32_t now_ms);
+  void update_uart_timers_(uint32_t now_ms);
   static bool time_reached_(uint32_t now_ms, uint32_t deadline_ms) {
     return static_cast<int32_t>(now_ms - deadline_ms) >= 0;
   }
@@ -194,6 +195,9 @@ class CollectorCore {
   uint32_t forward_sent_at_ms_ = 0;
   uint32_t uart_last_byte_at_ms_ = 0;
   uint32_t next_command_at_ms_ = 0;
+  bool command_spacing_armed_ = false;
+  bool uart_quarantined_ = false;
+  uint32_t uart_quiet_until_ms_ = 0;
 };
 
 }  // namespace eybond

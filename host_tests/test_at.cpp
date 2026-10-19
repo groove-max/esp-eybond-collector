@@ -70,9 +70,9 @@ TEST(at_replies_match_python_spec) {
   CHECK_STR(reply_for("AT+SYST?\r\n"), "AT+SYST:20260613120000\r\n");
 }
 
-TEST(at_write_acked_with_w000) {
-  CHECK_STR(reply_for("AT+CLDSRVHOST1=192.0.2.99,9999,TCP\r\n"), "AT+CLDSRVHOST1:W000\r\n");
-  CHECK_STR(reply_for("AT+HTBT=30\r\n"), "AT+HTBT:W000\r\n");
+TEST(at_pure_reply_cannot_confirm_writes) {
+  CHECK_STR(reply_for("AT+CLDSRVHOST1=192.0.2.99,9999,TCP\r\n"), "AT+CLDSRVHOST1:W001\r\n");
+  CHECK_STR(reply_for("AT+HTBT=30\r\n"), "AT+HTBT:W001\r\n");
 }
 
 TEST(at_lower_case_normalized) {

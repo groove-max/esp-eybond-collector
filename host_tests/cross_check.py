@@ -9,12 +9,13 @@ Run with the integration venv python:
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-INTEGRATION = HERE.parent.parent / "ha-eybond-local"
+INTEGRATION = Path(os.environ.get("EYBOND_INTEGRATION_PATH", HERE.parent.parent / "ha-eybond-local"))
 sys.path.insert(0, str(INTEGRATION))
 sys.path.insert(0, str(INTEGRATION / ".local" / "tools"))
 
@@ -46,7 +47,8 @@ def expected_vectors() -> dict[str, bytes]:
             collector_addr=0x10,
             fcode=2,
         ),
-        "at_write_ack": build_at_reply("CLDSRVHOST1", profile=PROFILE, cloud_endpoint=CLOUD_ENDPOINT, write_ack=True),
+        # A pure formatter cannot attest that a platform write was performed.
+        "at_write_ack": b"AT+CLDSRVHOST1:W001\r\n",
         "pn_synth": b"V00" + str(0xDEADBEEF0042).zfill(15).encode("ascii"),
     }
     for command in (

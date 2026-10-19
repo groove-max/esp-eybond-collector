@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <cstdlib>
+#include <limits>
 
 namespace eybond {
 
@@ -26,6 +27,7 @@ bool parse_uart_settings(const std::string &value, UartSettings *out) {
   size_t start = 0;
   for (size_t i = 0; i <= value.size() && count < 4; i++) {
     if (i == value.size() || value[i] == ',') {
+      if (count == 3 && i != value.size()) return false;
       fields[count++] = value.substr(start, i - start);
       start = i + 1;
     }
@@ -39,7 +41,9 @@ bool parse_uart_settings(const std::string &value, UartSettings *out) {
     if (ch < '0' || ch > '9') {
       return false;
     }
-    baud = baud * 10 + static_cast<uint32_t>(ch - '0');
+    const uint32_t digit = static_cast<uint32_t>(ch - '0');
+    if (baud > (std::numeric_limits<uint32_t>::max() - digit) / 10) return false;
+    baud = baud * 10 + digit;
   }
   if (baud == 0) {
     return false;
@@ -228,18 +232,25 @@ void CollectorCore::on_tcp_data(const uint8_t *data, size_t len, uint32_t now_ms
 }
 
 void CollectorCore::on_uart_data(const uint8_t *data, size_t len, uint32_t now_ms) {
+  if (len == 0) return;
+  if (uart_quarantined_) {
+    uart_quiet_until_ms_ = now_ms + config_.uart_timeout_ms;
+    return;
+  }
   if (bridge_state_ != BridgeState::WAITING_RESPONSE) {
     return;  // unsolicited noise between commands
   }
+  if (len > MAX_UART_RESPONSE - uart_response_.size()) {
+    quarantine_uart_(now_ms);
+    return;
+  }
   uart_response_.insert(uart_response_.end(), data, data + len);
   uart_last_byte_at_ms_ = now_ms;
-  if (uart_response_.size() > MAX_UART_RESPONSE) {
-    finish_forward_(true, now_ms);
-  }
 }
 
 void CollectorCore::loop(uint32_t now_ms) {
   event_now_ms_ = now_ms;
+  update_uart_timers_(now_ms);
 
   if (link_state_ == LinkState::DISCONNECTED && have_endpoint_ && time_reached_(now_ms, reconnect_at_ms_)) {
     link_state_ = LinkState::CONNECTING;
@@ -256,7 +267,7 @@ void CollectorCore::loop(uint32_t now_ms) {
       finish_forward_(true, now_ms);
     } else if (time_reached_(now_ms, forward_sent_at_ms_ + config_.uart_timeout_ms)) {
       // Empty response -> honest timeout: no TCP reply at all.
-      finish_forward_(!uart_response_.empty(), now_ms);
+      quarantine_uart_(now_ms);
     }
   }
 
@@ -268,23 +279,26 @@ void CollectorCore::handle_at_line_(const std::string &line) {
   if (!parse_at_line(line, &command)) {
     return;
   }
-  if (command.is_write && command.command == "CLDSRVHOST1") {
-    // Retarget the reverse-TCP link to the written endpoint so AT+CLDSRVHOST1?
-    // and FC=2 param 21 keep reporting the address we actually use. Malformed
-    // values are ignored (the ack stays W000, factory-mirror).
-    std::string host;
-    uint16_t port = 0;
-    if (parse_server_endpoint(command.value, &host, &port)) {
-      set_server_endpoint(host, port, event_now_ms_);
+  if (command.is_write) {
+    bool accepted = false;
+    if (command.command == "CLDSRVHOST1") {
+      // Stage through the SAME platform transaction as FC3. INTPARA=29,1
+      // applies afterwards; the old socket remains open for this ACK.
+      accepted = actions_->set_param(21, command.value) == 0;
+    } else if (command.command == "INTPARA" && command.value == "29,1") {
+      accepted = actions_->set_param(29, "1") == 0;
+    } else if (command.command == "RESET" && command.value == "S") {
+      accepted = actions_->request_restart();
+    } else if (command.command == "UART" && !awaiting_uart_response() && forward_queue_.empty()) {
+      accepted = actions_->apply_uart(command.value);
     }
-  }
-  if (command.is_write && command.command == "UART") {
-    // Applied for real by platforms that support runtime re-configuration;
-    // they call update_uart_description() from inside the hook.
-    actions_->apply_uart(command.value);
+    const std::string reply = build_at_response(command.command, accepted ? "W000" : "W001");
+    actions_->tcp_send(reinterpret_cast<const uint8_t *>(reply.data()), reply.size());
+    return;
   }
   AtRuntimeValues runtime;
   runtime.cloud_endpoint = cloud_endpoint_;
+  if (command.command == "CLDSRVHOST1") actions_->query_param(21, &runtime.cloud_endpoint);
   runtime.wifi_rssi = actions_->wifi_rssi();
   runtime.time_string = actions_->time_string();
   const std::string reply = build_at_reply(command, profile_, runtime);
@@ -341,6 +355,11 @@ void CollectorCore::handle_frame_(const FrameHeader &header, const uint8_t *payl
     }
 
     case FC_FORWARD_TO_DEVICE: {
+      update_uart_timers_(event_now_ms_);
+      if (uart_quarantined_) {
+        actions_->log("UART recovering; request not queued");
+        return;
+      }
       if (forward_queue_.size() >= config_.forward_queue_limit) {
         actions_->log("forward queue full, dropping request");
         return;
@@ -361,10 +380,11 @@ void CollectorCore::handle_frame_(const FrameHeader &header, const uint8_t *payl
 }
 
 void CollectorCore::maybe_start_forward_(uint32_t now_ms) {
-  if (bridge_state_ != BridgeState::IDLE || forward_queue_.empty()) {
+  update_uart_timers_(now_ms);
+  if (uart_quarantined_ || bridge_state_ != BridgeState::IDLE || forward_queue_.empty()) {
     return;
   }
-  if (!time_reached_(now_ms, next_command_at_ms_)) {
+  if (command_spacing_armed_) {
     return;
   }
   const ForwardRequest &request = forward_queue_.front();
@@ -384,6 +404,7 @@ void CollectorCore::finish_forward_(bool send_response, uint32_t now_ms) {
   forward_queue_.pop_front();
   bridge_state_ = BridgeState::IDLE;
   next_command_at_ms_ = now_ms + config_.command_spacing_ms;
+  command_spacing_armed_ = true;
 
   if (send_response && link_state_ == LinkState::CONNECTED) {
     send_frame_(request.tid, request.devcode, request.devaddr, FC_FORWARD_TO_DEVICE,
@@ -422,6 +443,7 @@ void CollectorCore::send_frame_(uint16_t tid, uint16_t devcode, uint8_t devaddr,
 }
 
 void CollectorCore::drop_link_state_(uint32_t now_ms, bool backoff) {
+  if (bridge_state_ == BridgeState::WAITING_RESPONSE) quarantine_uart_(now_ms);
   splitter_.reset();
   forward_queue_.clear();
   uart_response_.clear();
@@ -435,6 +457,21 @@ void CollectorCore::drop_link_state_(uint32_t now_ms, bool backoff) {
                                 ? reconnect_backoff_ms_ * 2
                                 : config_.reconnect_max_ms;
   }
+}
+
+void CollectorCore::quarantine_uart_(uint32_t now_ms) {
+  forward_queue_.clear();
+  uart_response_.clear();
+  bridge_state_ = BridgeState::IDLE;
+  uart_quarantined_ = true;
+  uart_quiet_until_ms_ = now_ms + config_.uart_timeout_ms;
+  command_spacing_armed_ = false;
+  actions_->log("UART transaction uncertain; draining before new requests");
+}
+
+void CollectorCore::update_uart_timers_(uint32_t now_ms) {
+  if (command_spacing_armed_ && time_reached_(now_ms, next_command_at_ms_)) command_spacing_armed_ = false;
+  if (uart_quarantined_ && time_reached_(now_ms, uart_quiet_until_ms_)) uart_quarantined_ = false;
 }
 
 }  // namespace eybond

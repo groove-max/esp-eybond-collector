@@ -8,7 +8,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: groove-max.eybond-collector
-    version: "0.1.10"
+    version: "0.1.11"
 
 esp8266:
   board: d1_mini
@@ -22,6 +22,7 @@ wifi:
 captive_portal:
 
 api:
+  reboot_timeout: 0s  # Reverse TCP does not require an ESPHome Native API client.
 
 ota:
   - platform: esphome

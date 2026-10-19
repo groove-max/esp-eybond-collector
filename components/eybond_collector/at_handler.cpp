@@ -87,7 +87,7 @@ std::string build_at_response(const std::string &command, const std::string &val
 std::string build_at_reply(const AtCommand &command, const CollectorProfile &profile,
                            const AtRuntimeValues &runtime) {
   if (command.is_write) {
-    return build_at_response(command.command, "W000");
+    return build_at_response(command.command, "W001");
   }
 
   const std::string &name = command.command;

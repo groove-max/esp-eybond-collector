@@ -576,7 +576,7 @@ namespace {
 class UartActions : public MockActions {
  public:
   std::string uart_write_value;
-  void apply_uart(const std::string &value) override { uart_write_value = value; }
+  bool apply_uart(const std::string &value) override { uart_write_value = value; return true; }
 };
 
 }  // namespace
@@ -685,17 +685,16 @@ TEST(core_endpoint_change_notifies_for_persistence) {
   CHECK_STR(actions.endpoint_changes[1].first, "192.0.2.20");
 }
 
-TEST(core_at_cldsrvhost1_write_retargets_link) {
-  EndpointActions actions;
+TEST(core_at_endpoint_is_staged_before_explicit_apply) {
+  RestartParamActions actions;
   CollectorCore core(&actions, Fixture::make_profile(), CoreConfig{});
   const std::string discovery = "set>server=192.0.2.10:8899;";
   core.on_udp_datagram(reinterpret_cast<const uint8_t *>(discovery.data()), discovery.size(), 1000);
   core.loop(1000);
   core.on_tcp_connected(1100);
   actions.calls.clear();
-  actions.endpoint_changes.clear();
 
-  // Writing a new cloud host retargets the reverse TCP link and re-persists.
+  // The same deferred transaction as FC3: do not close before the AT ACK.
   const std::string line = "AT+CLDSRVHOST1=192.0.2.50,8899,TCP\r\n";
   core.on_tcp_data(reinterpret_cast<const uint8_t *>(line.data()), line.size(), 2000);
 
@@ -705,22 +704,105 @@ TEST(core_at_cldsrvhost1_write_retargets_link) {
     if (call.kind == "tcp_close") closed = true;
     if (call.kind == "tcp_send") reply.assign(call.data.begin(), call.data.end());
   }
-  CHECK(closed);  // dropped the old link to move to the new endpoint
-  CHECK_STR(reply, "AT+CLDSRVHOST1:W000\r\n");  // ack stays factory-mirror
-  CHECK(actions.endpoint_changes.size() == 1);
-  CHECK_STR(actions.endpoint_changes[0].first, "192.0.2.50");
+  CHECK(!closed);
+  CHECK_STR(reply, "AT+CLDSRVHOST1:W000\r\n");
+  CHECK_STR(actions.pending_endpoint, "192.0.2.50,8899,TCP");
+  CHECK(!actions.endpoint_committed);
+  const std::string apply = "AT+INTPARA=29,1\r\n";
+  core.on_tcp_data(reinterpret_cast<const uint8_t *>(apply.data()), apply.size(), 2100);
+  CHECK(actions.endpoint_committed);
+  CHECK(!actions.reboot_scheduled);
+}
 
-  // After reconnect, FC=2 param 21 read reports the new endpoint (no lie).
-  core.loop(4000);
-  core.on_tcp_connected(4100);
+TEST(core_timeout_discards_queue_and_drains_late_uart) {
+  Fixture fx;
+  fx.connect();
+  fx.feed_frame(10, 0x0994, 1, FC_FORWARD_TO_DEVICE, {'A'}, 2000);
+  fx.feed_frame(11, 0x0994, 1, FC_FORWARD_TO_DEVICE, {'B'}, 2001);
+  fx.actions.calls.clear();
+  fx.core.loop(5000);
+  fx.core.loop(5850);
+  CHECK(!fx.core.awaiting_uart_response());
+  fx.feed_frame(12, 0x0994, 1, FC_FORWARD_TO_DEVICE, {'C'}, 5850);
+  const uint8_t late[] = {'A'};
+  fx.core.on_uart_data(late, sizeof(late), 5860);
+  fx.core.loop(8859);
+  CHECK(fx.actions.calls.empty());
+  fx.feed_frame(13, 0x0994, 1, FC_FORWARD_TO_DEVICE, {'D'}, 8860);
+  const auto calls = fx.actions.take();
+  CHECK(calls.size() == 1 && calls[0].kind == "uart_send");
+  CHECK(fx.core.awaiting_uart_response());
+}
+
+TEST(core_uart_drain_survives_physical_reconnect) {
+  Fixture fx;
+  fx.connect();
+  fx.feed_frame(10, 0x0994, 1, FC_FORWARD_TO_DEVICE, {'A'}, 2000);
+  fx.core.on_tcp_closed(2100);
+  fx.core.loop(4100);
+  fx.core.on_tcp_connected(4110);
+  fx.actions.calls.clear();
+  fx.feed_frame(20, 0x0994, 1, FC_FORWARD_TO_DEVICE, {'B'}, 4120);
+  const uint8_t late[] = {'A'};
+  fx.core.on_uart_data(late, sizeof(late), 4130);
+  fx.core.loop(4190);
+  CHECK(fx.actions.calls.empty());
+  CHECK(!fx.core.awaiting_uart_response());
+  fx.feed_frame(21, 0x0994, 1, FC_FORWARD_TO_DEVICE, {'C'}, 7130);
+  CHECK(fx.core.awaiting_uart_response());
+}
+
+TEST(core_no_stale_zero_deadline_after_long_uptime) {
+  Fixture fx;
+  fx.core.on_tcp_connected(0x80001000U);
+  fx.actions.calls.clear();
+  fx.feed_frame(1, 0x0994, 1, FC_FORWARD_TO_DEVICE, {'A'}, 0x80001001U);
+  CHECK(fx.core.awaiting_uart_response());
+  CHECK(fx.actions.calls.size() == 1);
+}
+
+TEST(core_oversized_uart_response_is_not_published_as_success) {
+  Fixture fx;
+  fx.connect();
+  fx.feed_frame(1, 0x0994, 1, FC_FORWARD_TO_DEVICE, {'A'}, 2000);
+  fx.actions.calls.clear();
+  const std::vector<uint8_t> oversized(513, 'X');
+  fx.core.on_uart_data(oversized.data(), oversized.size(), 2100);
+  fx.core.loop(2200);
+  CHECK(fx.actions.calls.empty());
+  CHECK(!fx.core.awaiting_uart_response());
+}
+
+TEST(core_at_reset_requires_real_platform_acceptance) {
+  class RestartActions : public MockActions {
+   public:
+    bool accepted = false;
+    int attempts = 0;
+    bool request_restart() override { ++attempts; return accepted; }
+  } actions;
+  CollectorCore core(&actions, Fixture::make_profile(), CoreConfig{});
+  core.on_tcp_connected(100);
   actions.calls.clear();
-  const std::vector<uint8_t> q21 = build_frame(0x60, 0x0994, 0x10, FC_QUERY_COLLECTOR,
-                                               (const uint8_t[]){21}, 1);
-  core.on_tcp_data(q21.data(), q21.size(), 4200);
-  const auto calls = actions.take();
-  CHECK(calls.size() == 1);
-  CHECK(calls[0].data[8] == 0 && calls[0].data[9] == 21);
-  CHECK_STR(std::string(calls[0].data.begin() + 10, calls[0].data.end()), "192.0.2.50,8899,TCP");
+  const std::string reset = "AT+RESET=S\r\n";
+  core.on_tcp_data(reinterpret_cast<const uint8_t *>(reset.data()), reset.size(), 200);
+  CHECK_STR(std::string(actions.calls.back().data.begin(), actions.calls.back().data.end()), "AT+RESET:W001\r\n");
+  actions.accepted = true;
+  core.on_tcp_data(reinterpret_cast<const uint8_t *>(reset.data()), reset.size(), 201);
+  CHECK_STR(std::string(actions.calls.back().data.begin(), actions.calls.back().data.end()), "AT+RESET:W000\r\n");
+  CHECK(actions.attempts == 2);
+  const std::string unknown = "AT+NOTIMPLEMENTED=1\r\n";
+  core.on_tcp_data(reinterpret_cast<const uint8_t *>(unknown.data()), unknown.size(), 202);
+  CHECK_STR(std::string(actions.calls.back().data.begin(), actions.calls.back().data.end()), "AT+NOTIMPLEMENTED:W001\r\n");
+  CHECK(actions.attempts == 2);
+}
+
+TEST(uart_parser_rejects_overflow_and_extra_fields) {
+  UartSettings settings;
+  CHECK(!parse_uart_settings("4294969696,8,1,NONE", &settings));
+  CHECK(!parse_uart_settings("2400,8,1,NONE,garbage", &settings));
+  CHECK(!parse_uart_settings("2400,8,1,NONE,", &settings));
+  CHECK(parse_uart_settings("2400,8,1,NONE", &settings));
+  CHECK(settings.baud == 2400);
 }
 
 TEST(parse_uart_settings_forms) {

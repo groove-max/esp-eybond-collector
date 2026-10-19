@@ -5,3 +5,4 @@ examples/secrets.yaml
 examples/_*.yaml
 __pycache__/
 .local/
+dist/

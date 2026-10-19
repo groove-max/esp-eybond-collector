@@ -7,6 +7,7 @@ Releases are tag-driven.
 Every pull request and push runs:
 
 - host-side C++ tests;
+- platform IO contract checks (offline Wi-Fi apply and partial TCP writes);
 - example YAML parsing;
 - markdown link checks;
 - ESPHome compile for the two release presets:
@@ -63,3 +64,25 @@ Output:
 6. Run a local web release build if ESPHome dependencies are available.
 7. Create and push the release tag (`git tag vX.Y.Z && git push origin vX.Y.Z`) — the
    release workflow then builds the binaries and deploys the web installer.
+
+## Runtime qualification for 0.1.11
+
+In addition to the compile matrix, verify on an own test device: OTA reconnect,
+unchanged Wi-Fi/PN/UART settings, fresh inverter values, staged endpoint readback,
+one real framed restart, new-session identity qualification, and restoration of
+the original endpoint. Keep hardware claims separate: an ESP8266 run does not
+qualify ESP32 BLE radio behavior, and a compile pass is not a hardware test.
+
+The UART bridge has no inverter transaction identifiers. After an uncertain
+exchange it discards queued commands and requires a full `response_timeout`
+of UART silence (3 seconds by default) before accepting new requests. New bytes
+extend that interval; TCP reconnect does not clear it. Choose a timeout covering
+the actual inverter response latency. This bounds recovery under that timing
+contract; it cannot identify arbitrarily delayed bytes or make raw UART writes
+safe to replay. No empty response or invented inverter ACK is sent.
+
+AT endpoint writes now stage settings; `AT+INTPARA=29,1` applies them. Both AT
+and framed callers can read the accepted endpoint before Apply. `AT+RESET=S`
+is a real soft restart and refuses pending settings. FC3 parameter29 remains
+the compatible apply-or-reboot operation, so clients must inspect parameter30
+before offering a standalone restart. ACK means acceptance, not verified return.
