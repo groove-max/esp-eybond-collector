@@ -137,6 +137,11 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   std::string current_com_led_pin() const;
   std::string current_server_host() const;
   uint16_t current_server_port() const;
+  std::string web_display_uart_settings() const;
+  std::string web_display_collector_pn() const;
+  bool web_display_uses_default_collector_pn() const;
+  std::string web_display_server_host() const;
+  uint16_t web_display_server_port() const;
   bool collector_link_connected() const { return core_ != nullptr && core_->connected(); }
   bool uart_response_pending() const { return core_ != nullptr && core_->awaiting_uart_response(); }
   UartDiagnosticsSnapshot uart_diagnostics_snapshot(uint32_t now);

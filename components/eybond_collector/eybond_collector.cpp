@@ -368,17 +368,27 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
   }
 
   void send_page_(AsyncWebServerRequest *request, const std::string &message, bool error) {
-    const std::string host = html_escape(owner_->current_server_host());
-    const unsigned port = static_cast<unsigned>(owner_->current_server_port());
-    const unsigned baud = static_cast<unsigned>(owner_->current_baud_rate());
-    const unsigned data_bits = static_cast<unsigned>(owner_->current_uart_data_bits());
-    const unsigned stop_bits = static_cast<unsigned>(owner_->current_uart_stop_bits());
-    const std::string parity = owner_->current_uart_parity();
+    const std::string host = html_escape(owner_->web_display_server_host());
+    const unsigned port = static_cast<unsigned>(owner_->web_display_server_port());
+    const std::string display_uart = owner_->web_display_uart_settings();
+    eybond::UartSettings display_uart_settings{};
+    const bool display_uart_valid = eybond::parse_uart_settings(display_uart, &display_uart_settings);
+    const unsigned baud = display_uart_valid ? static_cast<unsigned>(display_uart_settings.baud)
+                                             : static_cast<unsigned>(owner_->current_baud_rate());
+    const unsigned data_bits = display_uart_valid ? static_cast<unsigned>(display_uart_settings.data_bits)
+                                                  : static_cast<unsigned>(owner_->current_uart_data_bits());
+    const unsigned stop_bits = display_uart_valid ? static_cast<unsigned>(display_uart_settings.stop_bits)
+                                                  : static_cast<unsigned>(owner_->current_uart_stop_bits());
+    const std::string parity = display_uart_valid
+                                   ? (display_uart_settings.parity == eybond::UartParity::EVEN
+                                          ? "EVEN"
+                                          : display_uart_settings.parity == eybond::UartParity::ODD ? "ODD" : "NONE")
+                                   : owner_->current_uart_parity();
     const bool uart_runtime = owner_->runtime_uart_configuration_supported();
-    const std::string uart = html_escape(owner_->current_uart_settings());
-    const std::string collector_pn = html_escape(owner_->current_collector_pn());
+    const std::string uart = html_escape(display_uart);
+    const std::string collector_pn = html_escape(owner_->web_display_collector_pn());
     const std::string default_collector_pn = html_escape(owner_->default_collector_pn());
-    const bool use_default_pn = owner_->using_default_collector_pn();
+    const bool use_default_pn = owner_->web_display_uses_default_collector_pn();
     const std::string hostname = html_escape(App.get_name());
     const std::string wifi_ssid = html_escape(WiFi.SSID().c_str());
     const bool wifi_connected = network::is_connected();
@@ -1046,6 +1056,31 @@ std::string EybondCollector::current_server_host() const {
 
 uint16_t EybondCollector::current_server_port() const {
   return core_ != nullptr ? core_->server_port() : 0;
+}
+
+// Web writes are applied after the HTTP response has been queued, so changing
+// the endpoint cannot cut off its own acknowledgement and a PN change can
+// schedule a clean restart. While that short apply window is open, the accepted
+// value is the truthful state for the form even though the hardware/core still
+// exposes the previous value.
+std::string EybondCollector::web_display_uart_settings() const {
+  return web_uart_apply_requested_ ? web_staged_uart_ : this->uart_settings_string_();
+}
+
+std::string EybondCollector::web_display_collector_pn() const {
+  return pn_apply_requested_ ? web_staged_pn_ : collector_pn_;
+}
+
+bool EybondCollector::web_display_uses_default_collector_pn() const {
+  return pn_apply_requested_ ? web_staged_use_default_pn_ : using_default_pn_;
+}
+
+std::string EybondCollector::web_display_server_host() const {
+  return endpoint_apply_requested_ ? staged_endpoint_host_ : this->current_server_host();
+}
+
+uint16_t EybondCollector::web_display_server_port() const {
+  return endpoint_apply_requested_ ? staged_endpoint_port_ : this->current_server_port();
 }
 
 UartDiagnosticsSnapshot EybondCollector::uart_diagnostics_snapshot(uint32_t now) {
