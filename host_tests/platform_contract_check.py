@@ -59,12 +59,18 @@ public:
   uint32_t wifi_apply_at_ms_ = 0;
   Tcp tcp_;
   Core *core_ = &core;
+  Mutex ble_rx_mutex_;
+  std::string ble_rx_;
+  bool ble_rx_overflow_ = false, ble_rx_pending_ = false;
+  uint32_t ble_rx_last_ms_ = 0;
+  void ble_feed_(const uint8_t *, size_t);
   void process_wifi_apply_(uint32_t now);
   void tcp_send(const uint8_t *, size_t);
 };
 '''
     fixture += body("void EybondCollector::process_wifi_apply_(uint32_t now)")
     fixture += body("void EybondCollector::tcp_send(const uint8_t *data, size_t len)")
+    fixture += body("void EybondCollector::ble_feed_(const uint8_t *data, size_t len)")
     fixture += r'''
 int main() {
   EybondCollector c;
@@ -89,6 +95,18 @@ int main() {
   assert(!c.tcp_up_ && core.closed == 1 && c.tcp_.stops == 1);
   c.tcp_send(bytes, 4);
   assert(c.tcp_.writes == 2); // no replay or next frame on damaged stream
+
+  c.ble_feed_(nullptr, 0);
+  assert(c.ble_rx_.empty() && !c.ble_rx_overflow_);
+  c.ble_feed_(bytes, sizeof(bytes));
+  assert(c.ble_rx_.size() == 4 && c.ble_rx_pending_ && c.ble_rx_last_ms_ == 2000);
+  const std::string fragment(508, 'x');
+  c.ble_feed_(reinterpret_cast<const uint8_t *>(fragment.data()), fragment.size());
+  assert(c.ble_rx_.size() == 512 && !c.ble_rx_overflow_);
+  c.ble_feed_(bytes, 1);
+  assert(c.ble_rx_.size() == 512 && c.ble_rx_overflow_);
+  c.ble_feed_(bytes, 4);
+  assert(c.ble_rx_.size() == 512);  // no partial/truncated command execution
 }
 '''
     with tempfile.TemporaryDirectory(prefix="eybond-platform-") as directory:
@@ -96,7 +114,7 @@ int main() {
         source.write_text(fixture)
         subprocess.run(["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror", str(source), "-o", str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
-    print("platform_contracts:ok (Wi-Fi apply, offline ordering, partial TCP write)")
+    print("platform_contracts:ok (Wi-Fi apply, offline ordering, partial TCP write, bounded BLE RX)")
 
 
 if __name__ == "__main__":

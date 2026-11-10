@@ -105,6 +105,12 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
+    # ESPHome 2026.2+ selectively compiles Arduino libraries on ESP32. The
+    # native ESPHome Wi-Fi component no longer pulls in these Arduino wrappers,
+    # which our TCP/UDP transport still uses (WiFi also enables Network).
+    if CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("WiFi", None)
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

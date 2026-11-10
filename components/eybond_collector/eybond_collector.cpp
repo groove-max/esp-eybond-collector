@@ -2,6 +2,7 @@
 
 #include "eybond_collector.h"
 #include "endpoint_readback.h"
+#include "esphome_compat.h"
 
 #include <cinttypes>
 #include <cctype>
@@ -13,6 +14,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/version.h"
 #include "esphome/components/network/util.h"
 
 #ifdef USE_DASHBOARD_IMPORT
@@ -30,7 +32,8 @@
 #include "esphome/components/esp32_ble_server/ble_service.h"
 #include "esphome/components/esp32_ble_server/ble_2902.h"
 #include <esp_gatt_common_api.h>  // esp_ble_gatt_set_local_mtu
-#include <esp_gap_ble_api.h>      // esp_ble_tx_power_set
+#include <esp_bt.h>              // esp_ble_tx_power_set (do not rely on transitive includes)
+#include <esp_gap_ble_api.h>
 #endif
 
 #ifdef USE_ESP8266
@@ -46,7 +49,22 @@ namespace eybond_collector {
 
 static const char *const TAG = "eybond_collector";
 
+static std::string connected_wifi_ssid() {
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component != nullptr)
+    return eybond::compat::connected_ssid(wifi::global_wifi_component, 0);
+#endif
+  return "";
+}
+
 #ifdef USE_EYBOND_WEB_CONFIG
+// ESP8266 needs flash-aware reads; ESP32's native web server expects ordinary
+// const char*, not Arduino's __FlashStringHelper. Its flash is memory-mapped.
+#ifdef USE_ESP8266
+#define EYBOND_WEB_F(value) F(value)
+#else
+#define EYBOND_WEB_F(value) (value)
+#endif
 namespace {
 
 std::string html_escape(const std::string &value) {
@@ -140,7 +158,7 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
   bool isRequestHandlerTrivial() const override { return false; }
 
   bool canHandle(AsyncWebServerRequest *request) const override {
-    const String &url = request->url();
+    const std::string url = eybond::compat::request_url(request, 0);
     return (request->method() == HTTP_GET &&
             (url == "/" || url == "/eybond" || url == "/config.json" || url == "/diagnostics.json" ||
              url == "/wifisave" ||
@@ -151,7 +169,7 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
   }
 
   void handleRequest(AsyncWebServerRequest *request) override {
-    const String &url = request->url();
+    const std::string url = eybond::compat::request_url(request, 0);
     if (url == "/identity/save") {
       this->handle_identity_save_(request);
       return;
@@ -212,7 +230,7 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
   }
 
   void send_translations_(AsyncWebServerRequest *request) const {
-    const String lang = request->arg("lang");
+    const auto lang = request->arg("lang");
     const char *content = lang == "uk" ? I18N_UK : lang == "ru" ? I18N_RU : I18N_EN;
     this->send_progmem_(request, "application/javascript; charset=utf-8", content);
   }
@@ -232,34 +250,27 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
     if (diagnostics.has_tx_activity) {
       response->printf("\"last_tx_age_ms\":%u,", static_cast<unsigned>(diagnostics.last_tx_age_ms));
     } else {
-      response->print(F("\"last_tx_age_ms\":null,"));
+      response->print(EYBOND_WEB_F("\"last_tx_age_ms\":null,"));
     }
     if (diagnostics.has_rx_activity) {
       response->printf("\"last_rx_age_ms\":%u}", static_cast<unsigned>(diagnostics.last_rx_age_ms));
     } else {
-      response->print(F("\"last_rx_age_ms\":null}"));
+      response->print(EYBOND_WEB_F("\"last_rx_age_ms\":null}"));
     }
     request->send(response);
   }
 
-  String form_arg_(AsyncWebServerRequest *request, const char *name) const {
-    const AsyncWebParameter *parameter = request->getParam(name, true);
-    if (parameter == nullptr) parameter = request->getParam(name);
-    return parameter != nullptr ? parameter->value() : String();
+  std::string form_arg_(AsyncWebServerRequest *request, const char *name) const {
+    const auto *parameter = eybond::compat::form_parameter(request, name, 0);
+    return parameter != nullptr ? std::string(parameter->value().c_str()) : std::string();
   }
 
   bool has_form_arg_(AsyncWebServerRequest *request, const char *name) const {
-    return request->hasParam(name, true) || request->hasParam(name);
+    return eybond::compat::form_parameter(request, name, 0) != nullptr;
   }
 
   bool same_origin_(AsyncWebServerRequest *request) const {
-    if (!request->hasHeader("Origin")) {
-      // Native clients such as curl do not send Origin. Browser form submits
-      // from our own page do, and are checked below.
-      return true;
-    }
-    const String expected = String("http://") + request->host();
-    return request->header("Origin") == expected;
+    return eybond::compat::same_origin(request);
   }
 
   bool reject_cross_origin_(AsyncWebServerRequest *request) const {
@@ -269,7 +280,7 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
   }
 
   bool parse_port_(AsyncWebServerRequest *request, uint16_t *port) const {
-    const String port_text = this->form_arg_(request, "port");
+    const std::string port_text = this->form_arg_(request, "port");
     char *port_end = nullptr;
     const uint32_t value = strtoul(port_text.c_str(), &port_end, 10);
     if (port_text.length() == 0 || port_end == nullptr || *port_end != '\0' || value == 0 || value > 65535)
@@ -327,7 +338,7 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
   void handle_save_(AsyncWebServerRequest *request) {
     if (this->reject_cross_origin_(request)) return;
     const std::string host = this->form_arg_(request, "host").c_str();
-    const String port_text = this->form_arg_(request, "port");
+    const std::string port_text = this->form_arg_(request, "port");
     char *port_end = nullptr;
     const uint32_t port_value = strtoul(port_text.c_str(), &port_end, 10);
     const bool port_valid = port_text.length() > 0 && port_end != nullptr && *port_end == '\0' &&
@@ -390,9 +401,9 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
     const std::string default_collector_pn = html_escape(owner_->default_collector_pn());
     const bool use_default_pn = owner_->web_display_uses_default_collector_pn();
     const std::string hostname = html_escape(App.get_name());
-    const std::string wifi_ssid = html_escape(WiFi.SSID().c_str());
+    const std::string wifi_ssid = html_escape(connected_wifi_ssid());
     const bool wifi_connected = network::is_connected();
-    const int wifi_rssi = wifi_connected ? WiFi.RSSI() : -100;
+    const int wifi_rssi = wifi_connected ? wifi::global_wifi_component->wifi_rssi() : -100;
     const int tx_pin = owner_->current_uart_tx_pin();
     const int rx_pin = owner_->current_uart_rx_pin();
     const std::string direction_pin = html_escape(owner_->current_direction_pin());
@@ -406,7 +417,7 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
     const std::string rx_pin_label = rx_pin >= 0 ? std::string("GPIO") + std::to_string(rx_pin) : "not configured";
     AsyncResponseStream *response = request->beginResponseStream("text/html; charset=utf-8");
     response->addHeader("Cache-Control", "no-store");
-    response->print(F(
+    response->print(EYBOND_WEB_F(
         "<!doctype html><html data-theme='dark'><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<title>EyeBond Collector</title><link rel='stylesheet' href='/app.css'>"
         "<script>if(localStorage.getItem('eybond_theme')==='light')document.documentElement.dataset.theme='light'</script></head>"
@@ -426,12 +437,12 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
       response->printf("<p class='message %s' data-i18n='%s'>%s</p>", error ? "err" : "ok", web_message_key(message),
                        html_escape(message).c_str());
     }
-    response->print(F(
+    response->print(EYBOND_WEB_F(
         "<form method='get' action='/wifisave'><fieldset><legend>Wi-Fi</legend>"
         "<div id='wifi-networks'"));
     response->printf(" data-current-ssid='%s' data-current-connected='%u' data-current-rssi='%d'>",
                      wifi_ssid.c_str(), wifi_connected ? 1U : 0U, wifi_rssi);
-    response->print(F(
+    response->print(EYBOND_WEB_F(
         "<p class='hint' data-i18n='loading_networks'>Loading nearby networks…</p></div>"
         "<label><span data-i18n='network_name'>Network name (SSID)</span><input id='ssid' name='ssid' maxlength='32' required autocomplete='off'></label>"
         "<label><span data-i18n='wifi_password'>New Wi-Fi password</span><input name='psk' maxlength='64' type='password' autocomplete='new-password'></label>"
@@ -439,7 +450,7 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
         "<div class='form-actions'><button type='submit' data-i18n='save_wifi'>Save Wi-Fi and reconnect</button></div>"
         "</fieldset></form>"));
 
-    response->print(F(
+    response->print(EYBOND_WEB_F(
         "<form id='identity-form' method='post' action='/identity/save'>"
         "<fieldset><legend data-i18n='collector_identity'>Collector identity</legend>"));
     response->printf(
@@ -451,7 +462,7 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
         "maxlength='18' pattern='[A-Z][0-9]{13}|[A-Z][0-9]{17}' required value='%s' data-current-pn='%s' "
         "data-default-pn='%s'%s></label>",
         collector_pn.c_str(), collector_pn.c_str(), default_collector_pn.c_str(), use_default_pn ? " readonly" : "");
-    response->print(F(
+    response->print(EYBOND_WEB_F(
         "<p class='hint' data-i18n='pn_hint'>Changing PN changes this device's identity. If it was already added to Home Assistant, remove it there and add it again.</p>"
         "<div class='form-actions'><button type='submit' data-i18n='save_identity'>Save collector identity</button></div>"
         "</fieldset></form><form id='endpoint-form' method='post' action='/endpoint/save'>"
@@ -465,12 +476,12 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
         "<label><span data-i18n='port'>Port</span><input id='endpoint-port' name='port' type='number' min='1' "
         "max='65535' required value='%u' data-current-value='%u'></label>",
         port == 0 ? 18899U : port, port == 0 ? 18899U : port);
-    response->print(F(
+    response->print(EYBOND_WEB_F(
         "<p class='hint' data-i18n='endpoint_hint'>TCP is used. Saving reconnects the collector to this endpoint.</p>"
         "<div class='form-actions'><button type='submit' data-i18n='save_endpoint'>Save endpoint</button></div>"
         "</fieldset></form><form id='uart-form' method='post' action='/uart/save' data-current-framing='"));
     response->print(uart.c_str());
-    response->print(F("'>"
+    response->print(EYBOND_WEB_F("'>"
         "<fieldset><legend data-i18n='inverter_uart'>Inverter UART</legend>"));
     response->printf("<p class='hint'><span data-i18n='current_framing'>Current framing</span>: %s</p>", uart.c_str());
     response->printf("<div class='grid'><label><span data-i18n='baud_rate'>Baud rate</span><select name='baud' %s>", uart_runtime ? "" : "disabled");
@@ -479,35 +490,35 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
       response->printf("<option value='%u'%s>%u</option>", static_cast<unsigned>(candidate),
                        candidate == baud ? " selected" : "", static_cast<unsigned>(candidate));
     }
-    response->print(F("</select></label>"));
+    response->print(EYBOND_WEB_F("</select></label>"));
     response->printf("<label><span data-i18n='data_bits'>Data bits</span><select name='data_bits' %s>", uart_runtime ? "" : "disabled");
     for (unsigned candidate = 5; candidate <= 8; candidate++) {
       response->printf("<option value='%u'%s>%u</option>", candidate, candidate == data_bits ? " selected" : "",
                        candidate);
     }
-    response->print(F("</select></label>"));
+    response->print(EYBOND_WEB_F("</select></label>"));
     response->printf("<label><span data-i18n='parity'>Parity</span><select name='parity' %s>", uart_runtime ? "" : "disabled");
     static const char *const PARITIES[] = {"NONE", "EVEN", "ODD"};
     for (const char *candidate : PARITIES) {
       response->printf("<option value='%s'%s>%s</option>", candidate, parity == candidate ? " selected" : "",
                        candidate);
     }
-    response->print(F("</select></label>"));
+    response->print(EYBOND_WEB_F("</select></label>"));
     response->printf("<label><span data-i18n='stop_bits'>Stop bits</span><select name='stop_bits' %s>", uart_runtime ? "" : "disabled");
     for (unsigned candidate = 1; candidate <= 2; candidate++) {
       response->printf("<option value='%u'%s>%u</option>", candidate, candidate == stop_bits ? " selected" : "",
                        candidate);
     }
-    response->print(F("</select></label></div>"));
+    response->print(EYBOND_WEB_F("</select></label></div>"));
     if (!uart_runtime) {
-      response->print(F(
+      response->print(EYBOND_WEB_F(
           "<p class='hint' data-i18n='uart_readonly'>This platform cannot change UART at runtime. Change the YAML and reflash the device.</p>"));
     } else {
-      response->print(F(
+      response->print(EYBOND_WEB_F(
           "<p class='hint' data-i18n='uart_hint'>The complete UART framing is saved in the device's non-volatile memory, applied immediately, and used after every restart.</p>"
           "<div class='form-actions'><button type='submit' data-i18n='save_uart'>Save UART settings</button></div>"));
     }
-    response->print(F(
+    response->print(EYBOND_WEB_F(
         "</fieldset></form><fieldset><legend data-i18n='uart_diagnostics'>UART / RS485 diagnostics</legend>"
         "<div class='status-grid'>"
         "<div class='status-card'><span id='diag-link-dot' class='status-dot'></span><div class='status-copy'>"
@@ -532,21 +543,21 @@ class EybondWebConfigurationHandler : public AsyncWebHandler {
     response->printf("<label><span data-i18n='status_led_pin'>Status LED pin</span><input disabled value='%s' data-i18n-value='%s'></label>", status_led_pin.c_str(), web_value_key(status_led_pin));
     response->printf("<label><span data-i18n='com_led_pin'>Communication LED pin</span><input disabled value='%s' data-i18n-value='%s'></label>", com_led_pin.c_str(), web_value_key(com_led_pin));
     response->printf("<label><span data-i18n='esphome_hostname'>ESPHome hostname</span><input disabled value='%s'></label></div>", hostname.c_str());
-    response->print(F(
+    response->print(EYBOND_WEB_F(
         "<p class='hint' data-i18n='hardware_hint'>Pins and the ESPHome hostname are build-time hardware identity settings. They are shown here "
         "but are not rewritten by this firmware version.</p></fieldset>"));
-    response->print(F("<fieldset><legend data-i18n='dashboard_adoption'>ESPHome Dashboard</legend>"));
+    response->print(EYBOND_WEB_F("<fieldset><legend data-i18n='dashboard_adoption'>ESPHome Dashboard</legend>"));
     if (dashboard_available) {
-      response->print(F("<p class='ok' data-i18n='dashboard_import_available'>Dashboard adoption available</p>"));
+      response->print(EYBOND_WEB_F("<p class='ok' data-i18n='dashboard_import_available'>Dashboard adoption available</p>"));
       response->printf(
           "<p><span data-i18n='project'>Project</span>: <code>%s</code> <code>%s</code></p>"
           "<p class='package-url'><span data-i18n='package_import'>Import package</span>: <code>%s</code></p>",
           dashboard_project.c_str(), dashboard_version.c_str(), dashboard_package.c_str());
     } else {
-      response->print(F(
+      response->print(EYBOND_WEB_F(
           "<p class='hint' data-i18n='dashboard_import_unavailable'>Dashboard adoption is not included in this build</p>"));
     }
-    response->print(F(
+    response->print(EYBOND_WEB_F(
         "</fieldset>"
         "<form method='post' action='/update' enctype='multipart/form-data'><fieldset><legend data-i18n='firmware_update'>Firmware update</legend>"
         "<input type='file' name='update' accept='.bin' required>"
@@ -609,6 +620,13 @@ void EybondCollector::setup() {
 #endif
 
   this->configure_fallback_ap_(profile.pn);
+
+#if defined(USE_ESP32) && defined(USE_WIFI)
+  // Current ESPHome owns the native-IDF Wi-Fi interface. Do not initialize a
+  // second Arduino STA just to scan: use ESPHome's retained results instead.
+  if (wifi::global_wifi_component != nullptr)
+    wifi_scan_managed_ = eybond::compat::retain_scan_results(wifi::global_wifi_component, 0);
+#endif
 
   // A runtime-written server endpoint (HA "HA only" bind / move to another HA)
   // is persisted in NVS and takes priority over the YAML static_server option,
@@ -796,11 +814,14 @@ bool EybondCollector::query_param(uint8_t parameter, std::string *out) {
       *out = std::string("esp-collector/") + eybond::BRIDGE_VERSION + "/" + platform;
       return true;
     }
-    case 16: {  // local_ip_address (IPAddress::toString() is absent on LibreTiny)
-      const IPAddress ip = WiFi.localIP();
-      char buffer[16];
-      std::snprintf(buffer, sizeof(buffer), "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
-      *out = buffer;
+    case 16: {  // Query the interface owner, not an uninitialized Arduino STA.
+      *out = "0.0.0.0";
+      for (auto ip : network::get_ip_addresses()) {
+        if (ip.is_ip4() && ip.is_set()) {
+          *out = eybond::compat::ip_string(ip, 0);
+          break;
+        }
+      }
       return true;
     }
     case 21: {
@@ -816,19 +837,19 @@ bool EybondCollector::query_param(uint8_t parameter, std::string *out) {
       return true;
     }
     case 41:  // router_ssid (current STA network)
-      *out = WiFi.SSID().c_str();
+      *out = connected_wifi_ssid();
       return true;
     case 48:  // network_diagnostics; the integration extracts the RSSI from text
       *out = this->wifi_rssi();
       return true;
     case 49: {  // wifi_scan_list: "[ssid,rssi][ssid2,rssi2]..."
       if (!wifi_scan_running_) {
-        WiFi.scanNetworks(/*async=*/true, /*show_hidden=*/false);
+        if (!wifi_scan_managed_) WiFi.scanNetworks(/*async=*/true, /*show_hidden=*/false);
         wifi_scan_running_ = true;
       }
       if (wifi_scan_cache_.empty()) {
         // Scan still in flight: report at least the network we are on.
-        *out = std::string("[") + WiFi.SSID().c_str() + "," + this->wifi_rssi() + "]";
+        *out = std::string("[") + connected_wifi_ssid() + "," + this->wifi_rssi() + "]";
       } else {
         *out = wifi_scan_cache_;
       }
@@ -1039,7 +1060,7 @@ const char *EybondCollector::current_uart_parity() const {
 
 std::string EybondCollector::current_direction_pin() const {
   if (flow_control_pin_ == nullptr) return "automatic / none";
-  std::string summary = flow_control_pin_->dump_summary();
+  std::string summary = eybond::compat::pin_summary(flow_control_pin_, 0);
   if (flow_control_pin_->is_internal() && static_cast<InternalGPIOPin *>(flow_control_pin_)->is_inverted()) {
     summary += " (inverted)";
   }
@@ -1048,7 +1069,7 @@ std::string EybondCollector::current_direction_pin() const {
 
 std::string EybondCollector::current_status_led_pin() const {
   if (status_led_pin_ == nullptr) return "not configured";
-  std::string summary = status_led_pin_->dump_summary();
+  std::string summary = eybond::compat::pin_summary(status_led_pin_, 0);
   if (status_led_pin_->is_internal() && static_cast<InternalGPIOPin *>(status_led_pin_)->is_inverted()) {
     summary += " (inverted)";
   }
@@ -1057,7 +1078,7 @@ std::string EybondCollector::current_status_led_pin() const {
 
 std::string EybondCollector::current_com_led_pin() const {
   if (com_led_pin_ != nullptr) {
-    std::string summary = com_led_pin_->dump_summary();
+    std::string summary = eybond::compat::pin_summary(com_led_pin_, 0);
     if (com_led_pin_->is_internal() && static_cast<InternalGPIOPin *>(com_led_pin_)->is_inverted()) {
       summary += " (inverted)";
     }
@@ -1435,6 +1456,27 @@ void EybondCollector::poll_wifi_scan_(uint32_t now) {
   if (!wifi_scan_running_) {
     return;
   }
+#ifdef USE_WIFI
+  if (wifi_scan_managed_) {
+    wifi_scan_running_ = false;
+    std::vector<eybond::BleWifiNetwork> entries;
+    std::string cache;
+    // Called from the main loop, the owner of ESPHome's scan results. These
+    // can be cached; a BLE request must not restart or roam the STA connection.
+    for (const auto &scan : wifi::global_wifi_component->get_scan_result()) {
+      const std::string ssid = scan.get_ssid().c_str();
+      if (ssid.empty() || ssid.find_first_of(",[]") != std::string::npos) continue;
+      entries.push_back({ssid, scan.get_rssi()});
+      cache += "[" + ssid + "," + std::to_string(scan.get_rssi()) + "]";
+      if (entries.size() == 10) break;
+    }
+    if (!entries.empty()) {
+      wifi_scan_entries_ = std::move(entries);
+      wifi_scan_cache_ = std::move(cache);
+    }
+    return;
+  }
+#endif
   const int count = WiFi.scanComplete();
   if (count == WIFI_SCAN_RUNNING) {
     return;
@@ -1516,18 +1558,26 @@ void EybondCollector::setup_ble_() {
   // so the notify characteristic must carry a 0x2902 descriptor.
   ble_notify_char_->add_descriptor(new BLE2902());  // NOLINT(cppcoreguidelines-owning-memory)
 
+#if ESPHOME_VERSION_CODE >= VERSION_CODE(2025, 10, 0)
+  // ESPHome 2025.10 replaced EventEmitter/vector with a direct span callback.
+  write_char->on_write(
+      [this](const auto &data, uint16_t /*conn_id*/) { this->ble_feed_(data.data(), data.size()); });
+#else
   write_char->EventEmitter<BLECharacteristicEvt::VectorEvt, std::vector<uint8_t>, uint16_t>::on(
       BLECharacteristicEvt::VectorEvt::ON_WRITE,
-      [this](const std::vector<uint8_t> &data, uint16_t /*conn_id*/) { this->ble_feed_(data); });
+      [this](const std::vector<uint8_t> &data, uint16_t /*conn_id*/) {
+        this->ble_feed_(data.data(), data.size());
+      });
+#endif
 
   global_ble_server->enqueue_start_service(svc);
   ESP_LOGI(TAG, "BLE provisioning service ready (advertising PN %s)", ble_pn_.c_str());
 }
 
-void EybondCollector::ble_feed_(const std::vector<uint8_t> &data) {
+void EybondCollector::ble_feed_(const uint8_t *data, size_t len) {
   LockGuard lock(ble_rx_mutex_);
-  if (data.size() > 512 - ble_rx_.size()) ble_rx_overflow_ = true;
-  if (!ble_rx_overflow_) ble_rx_.append(reinterpret_cast<const char *>(data.data()), data.size());
+  if (len > 512 - ble_rx_.size()) ble_rx_overflow_ = true;
+  if (!ble_rx_overflow_ && len != 0) ble_rx_.append(reinterpret_cast<const char *>(data), len);
   ble_rx_last_ms_ = millis();
   ble_rx_pending_ = true;
 }
@@ -1561,7 +1611,7 @@ void EybondCollector::process_ble_(uint32_t now) {
   // the response is never lost to BLE/Wi-Fi coexistence on a weak link.
   if (ble_scan_pending_ && !wifi_scan_running_) {
     ble_scan_pending_ = false;
-    WiFi.scanNetworks(/*async=*/true, /*show_hidden=*/false);
+    if (!wifi_scan_managed_) WiFi.scanNetworks(/*async=*/true, /*show_hidden=*/false);
     wifi_scan_running_ = true;
     ble_last_scan_ms_ = (now == 0) ? 1 : now;
   }
@@ -1600,7 +1650,7 @@ std::vector<eybond::BleWifiNetwork> EybondCollector::ble_wifi_scan() {
   // network we are on, and schedule a refresh to run AFTER the notify (see
   // process_ble_), throttled so repeated refreshes don't keep hammering the radio.
   std::vector<eybond::BleWifiNetwork> out = wifi_scan_entries_;
-  const std::string ssid = WiFi.SSID().c_str();
+  const std::string ssid = connected_wifi_ssid();
   if (!ssid.empty() && ssid.find_first_of(",[]") == std::string::npos) {
     bool present = false;
     for (const auto &n : out) {

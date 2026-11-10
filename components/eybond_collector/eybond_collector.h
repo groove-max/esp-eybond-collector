@@ -200,7 +200,7 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   // esp32_ble_server. Called lazily from loop() because esp32_ble_server sets
   // global_ble_server in its own setup(), which runs after this component's.
   void setup_ble_();
-  void ble_feed_(const std::vector<uint8_t> &data);  // GATT write -> rx buffer
+  void ble_feed_(const uint8_t *data, size_t len);  // GATT write -> bounded rx buffer
   void process_ble_(uint32_t now);                   // settle, parse, notify
 #endif
 
@@ -277,6 +277,7 @@ class EybondCollector : public Component, public uart::UARTDevice, private eybon
   // Wi-Fi scan cache for FC=2 param 49 ("[ssid,rssi][ssid2,rssi2]...").
   std::string wifi_scan_cache_;
   bool wifi_scan_running_{false};
+  bool wifi_scan_managed_{false};
 
   // Notified after a successful runtime re-baud (keeps the select entity in sync).
   std::function<void(uint32_t)> baud_listener_;

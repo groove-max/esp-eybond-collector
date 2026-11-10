@@ -100,6 +100,7 @@ Short version:
 2. Copy an example from [examples/](examples/):
    - [`esp8266-d1-mini.yaml`](examples/esp8266-d1-mini.yaml) — release preset for D1 mini compatible boards
    - [`esp32-devkit.yaml`](examples/esp32-devkit.yaml) — release preset for ESP32 DevKit compatible boards
+   - [`esp32-c3.yaml`](examples/esp32-c3.yaml) — YAML-only ESP32-C3 example; compile-tested, hardware validation pending
    - [`esp32-ble.yaml`](examples/esp32-ble.yaml) — advanced ESP32 BLE provisioning profile
    - [`bk72xx.yaml`](examples/bk72xx.yaml) — advanced BK72xx / LibreTiny profile
 3. Create `examples/secrets.yaml` with your Wi-Fi name and password.
@@ -107,6 +108,18 @@ Short version:
 5. Flash once over USB.
 6. Wire the ESP board to the inverter.
 7. Add EyeBond Local in Home Assistant and run the normal collector scan.
+
+ESP32-C3 needs its own build and pinout: **do not flash the ESP32 DevKit browser
+image onto a C3**. The component explicitly enables the Arduino WiFi library
+required by ESPHome 2026.2 and later. If an older cached component fails with
+`WiFi.h: No such file or directory`, refresh the external component (temporarily
+set `refresh: 0s` on its source entry) and rebuild. Retain
+`esp32.framework.type: arduino`; ESP-IDF-only firmware is not supported by this component.
+
+On current ESPHome/ESP32, network details come from ESPHome's native Wi-Fi
+interface. BLE/AT network lists reuse ESPHome's scan cache plus the connected
+SSID; they do not start a second Arduino Wi-Fi stack or force a reconnect.
+The list can therefore be cached, not a fresh scan on every request.
 
 Example ESPHome block:
 
