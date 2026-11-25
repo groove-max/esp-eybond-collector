@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Factory image and dashboard adoption for the existing [ESP32-C3 profile](examples/esp32-c3.yaml).
+  The [FGI-S5000 field guide](docs/integrations/anern-fgi-s5000/README.md) shows the actual collector,
+  RS-232 socket pinout, level conversion and Home Assistant setup.
+
+### Changed
+
+- The C3 example now matches the tested 4 MB SuperMini: TX GPIO21, RX GPIO20,
+  active-low LED GPIO8, no RS485 direction pin. If your existing collector
+  uses TX GPIO4 / RX GPIO5 or DE/RE GPIO6, keep your previous YAML; do not
+  install the new factory image on that wiring.
+
 ## [0.1.11] - 2026-10-19
 
 ### Fixed

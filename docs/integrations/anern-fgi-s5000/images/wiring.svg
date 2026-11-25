@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="432" viewBox="0 0 960 432" role="img" aria-labelledby="title desc">
+  <title id="title">FGI-S5000 to HW-027/MAX3232 to ESP32-C3 SuperMini</title>
+  <desc id="desc">Pin 1 supplies the SuperMini's 5V input. Pin 3 drives RIN, ROUT drives GPIO20. GPIO21 drives TIN, TOUT drives pin 2. The ESP board's 3V3 powers the converter logic. Pin 4 is the common ground.</desc>
+  <defs>
+    <marker id="tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+      <path d="m0 0 10 5-10 5z" fill="#22485d"/>
+    </marker>
+  </defs>
+  <rect width="960" height="432" rx="14" fill="#f3f6f8"/>
+  <g font-family="DejaVu Sans,sans-serif" fill="#162f40">
+    <text x="26" y="38" font-size="25" font-weight="bold">Serial and power wiring</text>
+    <text x="26" y="64" font-size="17">External connector only · arrows show signal or supply direction</text>
+    <g fill="#fff" stroke="#bcced8" stroke-width="2">
+      <rect x="24" y="85" width="209" height="316" rx="11"/>
+      <rect x="346" y="171" width="269" height="230" rx="11"/>
+      <rect x="720" y="85" width="216" height="316" rx="11"/>
+    </g>
+    <g font-size="19" font-weight="bold" text-anchor="middle">
+      <text x="128" y="117">FGI-S5000 · WIFI</text>
+      <text x="480" y="201">HW-027 / MAX3232</text>
+      <text x="828" y="117">ESP32-C3 SuperMini</text>
+    </g>
+    <g font-size="18">
+      <text x="44" y="154">1   +5 V</text><text x="740" y="154">5V / VBUS in</text>
+      <text x="44" y="246">3   TX (out)</text><text x="360" y="246">RIN</text><text x="544" y="246">ROUT</text><text x="740" y="246">GPIO20 · RX</text>
+      <text x="44" y="291">2   RX (in)</text><text x="360" y="291">TOUT</text><text x="557" y="291">TIN</text><text x="740" y="291">GPIO21 · TX</text>
+      <text x="516" y="339">VCC (+)</text><text x="740" y="339">3V3 out</text>
+      <text x="44" y="381">4   GND</text><text x="451" y="381">GND</text><text x="740" y="381">GND</text>
+    </g>
+    <g fill="none" stroke="#22485d" stroke-width="3.5" marker-end="url(#tip)">
+      <path d="M233 148H714"/><path d="M233 240H340"/><path d="M615 240H714"/>
+      <path d="M720 285H621"/><path d="M346 285H239"/><path d="M720 333H621"/>
+    </g>
+    <g fill="#3c6275" font-size="15" text-anchor="middle">
+      <text x="285" y="216">RS-232</text><text x="668" y="216">3.3 V TTL</text>
+      <text x="480" y="140">5 V to board regulator only</text>
+    </g>
+    <path d="M233 375H445 M499 375H720" fill="none" stroke="#607584" stroke-width="3.5"/>
+    <path d="M410 240h115m-8 -5 8 5-8 5 M540 285H426m8 -5-8 5 8 5" fill="none" stroke="#748894" stroke-width="2"/>
+  </g>
+</svg>

@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 """Build web-installer firmware artifacts for ESP EyeBond Collector.
 
-The public web installer intentionally ships only two generic presets:
-
-- esp8266-d1-mini: one D1-mini-compatible pinout for TTL/RS232/RS485.
-- esp32-devkit: one ESP32 DevKit pinout for TTL/RS232/RS485.
-
-BLE and BK72xx stay YAML-only for the first release.
+The public installer selects by board and wiring, not by inverter model.
 """
 
 from __future__ import annotations
@@ -41,7 +36,7 @@ class Preset:
     chip_family: str
     tx: str
     rx: str
-    de: str
+    de: str | None
     led: str
     led_uk: str
     default_baud: str
@@ -77,10 +72,24 @@ PRESETS: tuple[Preset, ...] = (
         default_baud="9600",
         build_name="eybond-esp32",
     ),
+    Preset(
+        slug="esp32-c3",
+        label="ESP32-C3 SuperMini (4 MB)",
+        label_uk="ESP32-C3 SuperMini (4 МБ)",
+        config="examples/esp32-c3.yaml",
+        chip_family="ESP32-C3",
+        tx="GPIO21", rx="GPIO20", de=None,
+        led="GPIO8, inverted", led_uk="GPIO8, інверсний режим",
+        default_baud="9600", build_name="eybond-esp32-c3",
+    ),
 )
 
 PROJECT_NAME = "groove-max.eybond-collector"
-DASHBOARD_IMPORT_SLUGS = ("esp8266-d1-mini", "esp32-devkit", "bk72xx")
+DASHBOARD_IMPORT_PATHS = {
+    **{s: f"packages/{s}.yaml" for s in ("esp8266-d1-mini", "esp32-devkit", "bk72xx")},
+    # No separate hardware configuration to maintain for the C3.
+    "esp32-c3": "examples/esp32-c3.yaml",
+}
 YAML_ONLY_PROFILES = ("examples/bk72xx.yaml", "examples/esp32-ble.yaml")
 
 
@@ -94,12 +103,9 @@ def _bridge_version() -> str:
 
 def _validate_dashboard_import_metadata() -> None:
     version = _bridge_version()
-    for slug in DASHBOARD_IMPORT_SLUGS:
-        paths = [REPO / "examples" / f"{slug}.yaml", REPO / "packages" / f"{slug}.yaml"]
-        expected_url = (
-            f"github://groove-max/esp-eybond-collector/packages/{slug}.yaml@main"
-        )
-        for path in paths:
+    for slug, import_path in DASHBOARD_IMPORT_PATHS.items():
+        expected_url = f"github://groove-max/esp-eybond-collector/{import_path}@main"
+        for path in {REPO / "examples" / f"{slug}.yaml", REPO / import_path}:
             source = path.read_text()
             if f"name: {PROJECT_NAME}" not in source:
                 raise RuntimeError(f"{path}: missing ESPHome project name {PROJECT_NAME}")
@@ -160,10 +166,16 @@ def _compile(preset: Preset, *, esphome: str, local_source: bool) -> Path:
     _run([esphome, "compile", str(config)], cwd=REPO)
     build_name = preset.build_name if local_source else "eybond-bridge"
     build_dir = config.parent / ".esphome" / "build" / build_name
-    factory = build_dir / ".pioenvs" / build_name / "firmware.factory.bin"
-    if not factory.exists():
-        raise FileNotFoundError(factory)
-    return factory
+    # Native ESP-IDF and PlatformIO use different output directories. Never
+    # substitute an OTA/application image for the merged, offset-zero image.
+    candidates = [d / "firmware.factory.bin" for d in
+                  (build_dir / ".pioenvs" / build_name, build_dir / "build")]
+    found = [f for f in candidates if f.is_file()]
+    if not found:
+        raise FileNotFoundError(f"No factory image in {build_dir}")
+    if len(found) != 1:
+        raise RuntimeError(f"Both backends have factory images in {build_dir}; use a clean build directory")
+    return found[0]
 
 
 def _compile_yaml_only_profiles(*, esphome: str, local_source: bool) -> None:
@@ -195,19 +207,19 @@ def _manifest(preset: Preset, version: str) -> dict[str, object]:
     }
 
 
-def _write_web(output: Path, version: str) -> None:
+def _write_web(output: Path, version: str, presets: tuple[Preset, ...] = PRESETS) -> None:
     cards_en = []
     cards_uk = []
-    for preset in PRESETS:
+    for preset in presets:
         cards_en.append(
             f"""
       <section class="card">
         <h2>{preset.label}</h2>
-        <p>Use this for TTL, RS232, or RS485 wiring with the release pinout.</p>
+        <p>{'TTL, RS232 or RS485' if preset.de else 'TTL or RS232 (external level converter)'}.</p>
         <table>
           <tr><th>TX</th><td>{preset.tx}</td></tr>
           <tr><th>RX</th><td>{preset.rx}</td></tr>
-          <tr><th>RS485 DE/RE</th><td>{preset.de} (leave unconnected for TTL/RS232)</td></tr>
+          <tr><th>RS485 DE/RE</th><td>{preset.de + ' (leave unconnected for TTL/RS232)' if preset.de else 'Not configured'}</td></tr>
           <tr><th>Status LED</th><td>{preset.led}</td></tr>
           <tr><th>Default UART speed</th><td>{preset.default_baud} baud</td></tr>
         </table>
@@ -223,11 +235,11 @@ def _write_web(output: Path, version: str) -> None:
             f"""
       <section class="card">
         <h2>{preset.label_uk}</h2>
-        <p>Використовуйте цей варіант для TTL, RS232 або RS485 з наведеними нижче пінами.</p>
+        <p>{'TTL, RS232 або RS485' if preset.de else 'TTL або RS232 (через перетворювач рівнів)'}.</p>
         <table>
           <tr><th>TX</th><td>{preset.tx}</td></tr>
           <tr><th>RX</th><td>{preset.rx}</td></tr>
-          <tr><th>RS485 DE/RE</th><td>{preset.de} (не підключайте для TTL/RS232)</td></tr>
+          <tr><th>RS485 DE/RE</th><td>{preset.de + ' (не підключайте для TTL/RS232)' if preset.de else 'Не налаштовано'}</td></tr>
           <tr><th>Світлодіод стану</th><td>{preset.led_uk}</td></tr>
           <tr><th>Типова швидкість UART</th><td>{preset.default_baud} бод</td></tr>
         </table>
@@ -339,6 +351,8 @@ def main() -> int:
     parser.add_argument("--version", default="dev")
     parser.add_argument("--esphome", default="esphome")
     parser.add_argument("--compile", action="store_true")
+    parser.add_argument("--preset", choices=[p.slug for p in PRESETS],
+                        help="Build a single-board preview in a separate output directory")
     parser.add_argument("--compile-yaml-profiles", action="store_true")
     parser.add_argument("--local-source", action="store_true")
     args = parser.parse_args()
@@ -351,7 +365,8 @@ def main() -> int:
     firmware = web / "firmware"
     firmware.mkdir(parents=True, exist_ok=True)
 
-    for preset in PRESETS:
+    presets = tuple(p for p in PRESETS if args.preset is None or p.slug == args.preset)
+    for preset in presets:
         if args.compile:
             factory = _compile(preset, esphome=args.esphome, local_source=args.local_source)
             shutil.copy2(factory, firmware / f"{preset.slug}.factory.bin")
@@ -363,7 +378,7 @@ def main() -> int:
             esphome=args.esphome, local_source=args.local_source
         )
 
-    _write_web(web, args.version)
+    _write_web(web, args.version, presets)
     print(f"web_release:{web}")
     return 0
 

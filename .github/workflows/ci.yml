@@ -32,8 +32,13 @@ jobs:
           --compile-yaml-profiles
           --local-source
           --version ci
-      - name: Compile C3 YAML-only profile
-        run: python tools/check_esphome_compat.py --profile esp32-c3
+      - name: Keep ready-to-flash boards for testing (not a release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: collector-installer-preview
+          path: dist/web-release/web/
+          if-no-files-found: error
+          retention-days: 14
 
   current-esphome:
     runs-on: ubuntu-latest

@@ -40,12 +40,15 @@ English: [Flashing & First Setup](FLASHING.md).
 |---|---|---|---|---|---|
 | `esp8266-d1-mini` | ESP8266, сумісна з D1 mini | GPIO13 / D7 | GPIO12 / D6 | GPIO14 / D5 | `9600` |
 | `esp32-devkit` | ESP32, сумісна з DevKit | GPIO17 | GPIO16 | GPIO4 | `9600` |
+| `esp32-c3` | ESP32-C3 SuperMini (4 МБ) | GPIO21 | GPIO20 | — | `9600` |
 
-Обидва готові варіанти можна використовувати для TTL, RS232 або RS485:
+У SuperMini не налаштовано пін напрямку RS485. Див. [приклад RS232 на SuperMini з фото](integrations/anern-fgi-s5000/README.uk.md). Для профілів з DE/RE доступні такі варіанти:
 
 - TTL: підключіть TX/RX/GND, а DE/RE залиште непідключеним.
 - RS232: підключіть TX/RX/GND через MAX3232, а DE/RE залиште непідключеним.
 - RS485: підключіть TX/RX до RS485-модуля, а DE+RE — до DE/RE-піна з таблиці.
+
+**Оновлюєте стару збірку C3?** [Попередній приклад C3](https://github.com/groove-max/esp-eybond-collector/blob/502e5b5e5526edad9d2a292cb20b548e13543c06/examples/esp32-c3.yaml) використовував TX GPIO4, RX GPIO5 і GPIO6 для напрямку RS485. Для такого розведення залиште власний YAML і налаштування Wi-Fi. Новий образ не є прямою заміною.
 
 Після прошивки плата відкриє власну точку доступу для налаштування, якщо не зможе підключитися до Wi-Fi. Підключіться до неї з телефона або ноутбука і введіть дані Wi-Fi.
 
@@ -104,10 +107,11 @@ esphome-venv/bin/esphome version
 |---|---|---|
 | [`examples/esp8266-d1-mini.yaml`](../examples/esp8266-d1-mini.yaml) | ESP8266, сумісна з D1 mini | TTL, RS232 або RS485 |
 | [`examples/esp32-devkit.yaml`](../examples/esp32-devkit.yaml) | ESP32, сумісна з DevKit | TTL, RS232 або RS485 |
+| [`examples/esp32-c3.yaml`](../examples/esp32-c3.yaml) | ESP32-C3 SuperMini (4 МБ) | TTL 3,3 В або RS232 через MAX3232 |
 | [`examples/esp32-ble.yaml`](../examples/esp32-ble.yaml) | ESP32 з Bluetooth і достатньою пам'яттю для прошивки | розширене налаштування Wi-Fi через Bluetooth |
 | [`examples/bk72xx.yaml`](../examples/bk72xx.yaml) | BK72xx | будь-яке |
 
-Потім скопіюйте `examples/secrets.example.yaml` у `examples/secrets.yaml` і вкажіть назву та пароль Wi-Fi:
+Профіль C3 використовує точку доступу для налаштування. Для прикладів із `!secret` скопіюйте `examples/secrets.example.yaml` у `examples/secrets.yaml` і вкажіть назву та пароль Wi-Fi:
 
 ```yaml
 wifi_ssid: "YourNetwork"
@@ -263,6 +267,7 @@ Assistant чи параметри UART. Збережені налаштуван�
 
 - Wemos D1 mini: GPIO2 / D4, інверсний режим.
 - ESP-WROOM-32 DevKit: GPIO2.
+- ESP32-C3 SuperMini: GPIO8, інверсний режим. Це пін вибору режиму завантаження; використовуйте лише штатний світлодіод.
 
 На ESP32 GPIO2 впливає на режим запуску плати. Вбудований світлодіод на типових DevKit-платах використовувати можна, але не додавайте до GPIO2 зовнішні підтяжки або значне навантаження.
 

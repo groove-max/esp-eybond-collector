@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="920" height="445" viewBox="0 0 920 445" role="img" aria-labelledby="title desc">
+  <title id="title">FGI-S5000: WIFI socket, looking into the inverter</title>
+  <desc id="desc">With WIFI upright and BMS to its right, left to right: 1 supplies 5 V; 2 is inverter RX; 3 inverter TX; 4 signal ground. This is not a USB data interface.</desc>
+  <!-- Raster export for Markdown: rsvg-convert -o connector.png connector.svg -->
+  <defs>
+    <image id="photo" width="576" height="1280" xlink:href="inverter-port.jpg"/>
+  </defs>
+  <rect width="920" height="445" rx="14" fill="#f3f6f8"/>
+  <g font-family="DejaVu Sans, sans-serif" fill="#142e40">
+    <text x="24" y="37" font-size="24" font-weight="bold">FGI-S5000   /   WIFI · RS-232</text>
+    <text x="24" y="67" font-size="18">Front of inverter · looking into socket · not the plug solder side</text>
+    <svg x="24" y="91" width="300" height="259" viewBox="111 519 340 294">
+      <use xlink:href="#photo"/>
+      <rect x="180" y="649" width="100" height="58" rx="4" fill="none" stroke="#ffcf58" stroke-width="4"/>
+    </svg>
+    <svg x="347" y="91" width="548" height="198" viewBox="178 650 104 38" preserveAspectRatio="none">
+      <use xlink:href="#photo"/>
+    </svg>
+    <g fill="none" stroke="#ffce54" stroke-width="3">
+      <path d="M479 226v66 M571 226v66 M655 226v66 M746 226v66"/>
+    </g>
+    <g text-anchor="middle" font-size="21" font-weight="bold">
+      <text x="479" y="316">1</text><text x="571" y="316">2</text><text x="655" y="316">3</text><text x="746" y="316">4</text>
+      <text x="479" y="346">+5 V</text><text x="571" y="346">RX</text><text x="655" y="346">TX</text><text x="746" y="346">GND</text>
+    </g>
+    <path d="M24 371H895" stroke="#c6d3da"/>
+    <text x="24" y="398" font-size="18">RX / TX are named from the inverter. BMS is a separate connector.</text>
+    <text x="24" y="425" font-size="17">Measured unplugged, relative to pin 4:   1 ≈ +5.1 V    ·    2 ≈ 0 V    ·    3 ≈ −5.6 V</text>
+  </g>
+</svg>

@@ -10,9 +10,10 @@ Every pull request and push runs:
 - platform IO contract checks (offline Wi-Fi apply and partial TCP writes);
 - example YAML parsing;
 - markdown link checks;
-- ESPHome compile for the two release presets:
+- ESPHome compile for the release presets:
   - `esp8266-d1-mini`
   - `esp32-devkit`
+  - `esp32-c3`
 - ESPHome compile checks for the YAML-only BK72xx and ESP32 BLE profiles.
 
 ## Release artifacts
@@ -21,8 +22,10 @@ Pushing a tag like `v0.1.0` builds:
 
 - `esp8266-d1-mini.factory.bin`
 - `esp32-devkit.factory.bin`
+- `esp32-c3.factory.bin`
 - `manifest-esp8266-d1-mini.json`
 - `manifest-esp32-devkit.json`
+- `manifest-esp32-c3.json` (ESP32-C3, merged factory image at offset 0)
 - GitHub Pages web installer content
 - a `SHA256SUMS` file for the published binaries and manifests.
 
@@ -41,7 +44,7 @@ it by default. Pass `--esphome /path/to/esphome` to override.
 python3 tools/build_web_release.py \
   --compile \
   --local-source \
-  --version v0.1.5
+  --version dev
 ```
 
 Output:
@@ -50,12 +53,25 @@ Output:
 - `dist/web-release/web/manifest-*.json`
 - `dist/web-release/web/firmware/*.bin`
 
+To build only the SuperMini image and preview its installer locally (no upload):
+
+```sh
+python3 tools/build_web_release.py --compile --local-source --version dev \
+  --preset esp32-c3 --output dist/esp32-c3
+```
+
+The result is `dist/esp32-c3/web/firmware/esp32-c3.factory.bin`.
+This is for first flash via USB. Green CI runs also attach the installer with all
+images as `collector-installer-preview` for 14 days. Publishing to GitHub
+Releases and updating the live Pages installer still require a release tag.
+
 ## Before tagging
 
 1. Bump `BRIDGE_VERSION` in `components/eybond_collector/profile.h`. It is embedded in
    the FC=2 param-6 hardware-version marker (`esp-collector/<version>/<platform>`).
-   Mirror the same project version in the three release examples and three files under
-   `packages/`; `tools/build_web_release.py` rejects a metadata or release-tag
+   Mirror the same project version in every dashboard-importable example and
+   in any separate `packages/` file. The C3 imports `examples/esp32-c3.yaml`
+   directly. `tools/build_web_release.py` rejects a metadata or release-tag
    version mismatch before building.
 2. Add the new version's entry to [`CHANGELOG.md`](../CHANGELOG.md).
 3. Confirm the release examples still match the documented pinout.

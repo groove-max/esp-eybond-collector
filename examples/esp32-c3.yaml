@@ -1,22 +1,30 @@
-# ESP32-C3 YAML-only profile (not the ESP32 DevKit browser image).
-# Compile-tested; physical UART/radio operation still needs board validation.
-# Check the schematic of your particular board before wiring these example pins.
-# GPIO4/5: UART TX/RX; GPIO6: optional RS485 DE+RE. No status LED assumed.
+# 4 MB SuperMini with an active-low LED; TTL or external RS232 transceiver.
+# This file is also the ESPHome dashboard import package; keep it deployable
+# without private secrets. For older GPIO4/5/6 wiring use your original YAML.
+substitutions:
+  name: eybond-bridge
+  friendly_name: EyeBond Collector
 
 esphome:
-  name: eybond-bridge-c3
+  name: ${name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: true
+  project:
+    name: groove-max.eybond-collector
+    version: "0.1.11"
 
 esp32:
   board: esp32-c3-devkitm-1
+  flash_size: 4MB
   framework:
     type: arduino
 
 logger:
-  baud_rate: 0
+  # C3 defaults to native USB: USB_CDC (2025 Arduino), USB_SERIAL_JTAG (2026).
+  # Keep GPIO20/21 exclusively for the inverter UART.
+  level: DEBUG
 
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
   ap: {}
 
 captive_portal:
@@ -24,14 +32,21 @@ captive_portal:
 ota:
   - platform: esphome
 
+api:
+  reboot_timeout: 0s
+
+dashboard_import:
+  package_import_url: github://groove-max/esp-eybond-collector/examples/esp32-c3.yaml@main
+  import_full_config: false
+
 external_components:
   - source: github://groove-max/esp-eybond-collector
     components: [eybond_collector]
 
 uart:
   id: inverter_uart
-  tx_pin: GPIO4
-  rx_pin: GPIO5
+  tx_pin: GPIO21
+  rx_pin: GPIO20
   baud_rate: 9600
   data_bits: 8
   parity: NONE
@@ -41,13 +56,12 @@ eybond_collector:
   id: bridge
   uart_id: inverter_uart
   web_configuration: true
-  flow_control_pin: GPIO6  # RS485 DE+RE; leave unconnected for TTL/RS232
+  status_led_pin:
+    number: GPIO8
+    inverted: true
 
 select:
   - platform: eybond_collector
     eybond_collector_id: bridge
-    name: "Inverter UART baud rate"
+    name: Inverter UART baud rate
     restore_value: true
-
-api:
-  reboot_timeout: 0s

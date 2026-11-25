@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="810" height="520" viewBox="0 0 810 520" role="img" aria-labelledby="title">
+  <title id="title">Actual collector: components, wiring side, and fit in enclosure</title>
+  <!-- Editable crops of the three original photos. Raster export for GitHub:
+       rsvg-convert -o assembly.png assembly.svg -->
+  <rect width="810" height="520" rx="14" fill="#f3f6f8"/>
+  <svg x="12" y="12" width="254" height="452" viewBox="111 325 312 552">
+    <image width="576" height="1280" xlink:href="collector-front.jpg"/>
+  </svg>
+  <svg x="278" y="12" width="254" height="452" viewBox="93 284 345 613">
+    <image width="576" height="1280" xlink:href="collector-back.jpg"/>
+  </svg>
+  <svg x="544" y="12" width="254" height="452" viewBox="91 288 401 715">
+    <image width="576" height="1280" xlink:href="collector-case.jpg"/>
+  </svg>
+  <g font-family="DejaVu Sans, sans-serif" font-size="18" fill="#162f40" text-anchor="middle" font-weight="bold">
+    <text x="139" y="498">1 · Component side</text>
+    <text x="405" y="498">2 · Solder side</text>
+    <text x="671" y="498">3 · Open enclosure</text>
+  </g>
+</svg>

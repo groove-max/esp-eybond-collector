@@ -40,12 +40,15 @@ Open the project web installer, plug the ESP board into USB, and select the matc
 |---|---|---|---|---|---|
 | `esp8266-d1-mini` | ESP8266 D1 mini compatible | GPIO13 / D7 | GPIO12 / D6 | GPIO14 / D5 | `9600` |
 | `esp32-devkit` | ESP32 DevKit compatible | GPIO17 | GPIO16 | GPIO4 | `9600` |
+| `esp32-c3` | ESP32-C3 SuperMini (4 MB) | GPIO21 | GPIO20 | — | `9600` |
 
-Both presets can be used for TTL, RS232, or RS485:
+The SuperMini preset has no RS485 direction pin. See the [photographed SuperMini RS232 build](integrations/anern-fgi-s5000/README.md). For a preset with DE/RE the alternatives are:
 
 - TTL: connect TX/RX/GND and leave DE/RE unconnected.
 - RS232: connect TX/RX/GND through a MAX3232 and leave DE/RE unconnected.
 - RS485: connect TX/RX to the RS485 module and connect DE+RE to the preset DE/RE pin.
+
+**Upgrading an earlier C3 build?** The [previous C3 example](https://github.com/groove-max/esp-eybond-collector/blob/502e5b5e5526edad9d2a292cb20b548e13543c06/examples/esp32-c3.yaml) used TX GPIO4, RX GPIO5 and RS485 direction on GPIO6. Keep your existing YAML and Wi-Fi settings for that wiring. The new image is not a drop-in update.
 
 After flashing, the board opens a setup access point if it cannot join Wi-Fi. Connect to that access point from a phone or laptop and enter your Wi-Fi credentials.
 
@@ -103,10 +106,11 @@ Copy the example that matches your board and wiring type:
 |---|---|---|
 | [`examples/esp8266-d1-mini.yaml`](../examples/esp8266-d1-mini.yaml) | ESP8266 D1 mini compatible | TTL, RS232, or RS485 |
 | [`examples/esp32-devkit.yaml`](../examples/esp32-devkit.yaml) | ESP32 DevKit compatible | TTL, RS232, or RS485 |
+| [`examples/esp32-c3.yaml`](../examples/esp32-c3.yaml) | ESP32-C3 SuperMini (4 MB) | 3.3 V TTL, or RS232 via MAX3232 |
 | [`examples/esp32-ble.yaml`](../examples/esp32-ble.yaml) | ESP32 with BLE and enough flash | advanced BLE provisioning profile |
 | [`examples/bk72xx.yaml`](../examples/bk72xx.yaml) | BK72xx | any |
 
-Then copy `examples/secrets.example.yaml` to `examples/secrets.yaml` and put your Wi-Fi name and password there:
+The C3 preset uses the setup AP. For examples that use `!secret`, copy `examples/secrets.example.yaml` to `examples/secrets.yaml` and put your Wi-Fi name and password there:
 
 ```yaml
 wifi_ssid: "YourNetwork"
@@ -262,6 +266,7 @@ The release presets wire a single built-in LED to `status_led_pin`:
 
 - Wemos D1 mini: GPIO2 / D4, inverted.
 - ESP-WROOM-32 DevKit: GPIO2.
+- ESP32-C3 SuperMini: GPIO8, inverted. Use the onboard LED only; GPIO8 is a strapping pin.
 
 On ESP32, GPIO2 is a boot strapping pin. The built-in LED is fine on typical DevKit boards, but do not add external pull-up/down resistors or heavy loads to GPIO2.
 

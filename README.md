@@ -17,7 +17,7 @@ Use it when:
 
 The bridge stays on your LAN and does not connect to SmartESS cloud.
 
-> **First release status:** PI30 / Voltronic-style ASCII communication has been validated on real hardware. SMG / Modbus-style communication uses the same bridge path and is available for testing, but needs more real-device reports.
+> **Hardware evidence:** PI30 / Voltronic ASCII and Modbus RTU on the [FGI-S5000 with a SuperMini](docs/integrations/anern-fgi-s5000/README.md) have worked on real inverters. This does not validate every SMG/Modbus register map or logger port.
 
 ---
 
@@ -90,6 +90,10 @@ General rules:
 
 ---
 
+## Integration examples
+
+[Browse tested builds](docs/integrations/README.md). Start with the [Anern FGI-S5000: photographed socket pinout, MAX3232 wiring and HA setup](docs/integrations/anern-fgi-s5000/README.md).
+
 ## Quick start
 
 For a full step-by-step guide, use [Flashing & first setup](docs/FLASHING.md). Ukrainian version: [Прошивка та перше налаштування](docs/FLASHING.uk.md).
@@ -100,10 +104,10 @@ Short version:
 2. Copy an example from [examples/](examples/):
    - [`esp8266-d1-mini.yaml`](examples/esp8266-d1-mini.yaml) — release preset for D1 mini compatible boards
    - [`esp32-devkit.yaml`](examples/esp32-devkit.yaml) — release preset for ESP32 DevKit compatible boards
-   - [`esp32-c3.yaml`](examples/esp32-c3.yaml) — YAML-only ESP32-C3 example; compile-tested, hardware validation pending
+   - [`esp32-c3.yaml`](examples/esp32-c3.yaml) — 4 MB SuperMini, GPIO21 TX / GPIO20 RX; TTL or external RS232 adapter
    - [`esp32-ble.yaml`](examples/esp32-ble.yaml) — advanced ESP32 BLE provisioning profile
    - [`bk72xx.yaml`](examples/bk72xx.yaml) — advanced BK72xx / LibreTiny profile
-3. Create `examples/secrets.yaml` with your Wi-Fi name and password.
+3. For examples using `!secret`, create `examples/secrets.yaml` with your Wi-Fi name and password. The SuperMini preset uses the setup AP instead.
 4. Check the ESP board type and UART pins in the YAML.
 5. Flash once over USB.
 6. Wire the ESP board to the inverter.
@@ -156,12 +160,13 @@ This ESPHome select appears under the ESPHome device in Home Assistant. It is us
 
 On BK72xx / LibreTiny, change `baud_rate:` in YAML and reflash instead. A reboot alone is not enough because LibreTiny initializes UART from the compiled YAML value.
 
-Release presets use one pinout for all physical links:
+Choose a preset by board and pinout:
 
 | Preset | TX | RX | DE/RE for RS485 | Status LED | Default UART speed |
 |---|---|---|---|---|---|
 | ESP8266 D1 mini | GPIO13 / D7 | GPIO12 / D6 | GPIO14 / D5 | GPIO2 / D4, inverted | `9600` |
 | ESP32 DevKit | GPIO17 | GPIO16 | GPIO4 | GPIO2 | `9600` |
+| ESP32-C3 SuperMini (4 MB) | GPIO21 | GPIO20 | Not configured | GPIO8, inverted | `9600` |
 
 For TTL and RS232, use TX/RX/GND and leave the DE/RE pin unconnected. For RS485, connect DE and RE together to the listed DE/RE pin.
 
