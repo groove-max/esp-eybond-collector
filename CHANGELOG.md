@@ -6,10 +6,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-11-25
+
 ### Added
 
-- Factory image and dashboard adoption for the existing [ESP32-C3 profile](examples/esp32-c3.yaml).
-  The [FGI-S5000 field guide](docs/integrations/anern-fgi-s5000/README.md) shows the actual collector,
+- A ready-to-flash **ESP32-C3 SuperMini (4 MB)** image in the [web installer](https://groove-max.github.io/esp-eybond-collector/) and release downloads, alongside the D1 mini and ESP32 DevKit images. Use `esp32-c3.factory.bin` for a first USB flash at offset 0, not for OTA. The [ESP32-C3 profile](https://github.com/groove-max/esp-eybond-collector/blob/v0.1.12/examples/esp32-c3.yaml) also supports ESPHome dashboard adoption.
+- The [FGI-S5000 field guide](https://github.com/groove-max/esp-eybond-collector/blob/v0.1.12/docs/integrations/anern-fgi-s5000/README.md) shows the actual collector,
   RS-232 socket pinout, level conversion and Home Assistant setup.
 
 ### Changed
@@ -18,6 +20,12 @@ All notable changes to this project are documented here. The format is based on
   active-low LED GPIO8, no RS485 direction pin. If your existing collector
   uses TX GPIO4 / RX GPIO5 or DE/RE GPIO6, keep your previous YAML; do not
   install the new factory image on that wiring.
+
+### Fixed
+
+- ESP32 builds now declare their Arduino Wi-Fi dependency and use the appropriate
+  web, GPIO and BLE APIs for the ESPHome version. CI also compiles the C3, DevKit
+  and BLE YAML profiles with ESPHome 2026.10.2; release binaries use 2025.7.5.
 
 ## [0.1.11] - 2026-10-19
 

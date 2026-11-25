@@ -8,7 +8,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: groove-max.eybond-collector
-    version: "0.1.11"
+    version: "0.1.12"
 
 bk72xx:
   board: generic-bk7231n-qfn32-tuya
